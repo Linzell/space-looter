@@ -1,0 +1,123 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    tags: ["v*"] # Trigger on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "latest"
+
+      - name: Build WASM package
+        run: |
+          echo "🚀 Building Space Looter for tag: ${{ github.ref_name }}"
+          wasm-pack build \
+            --target web \
+            --out-dir pkg \
+            --release \
+            --no-typescript \
+            --no-opt \
+            -- --features web
+
+      - name: Create distribution
+        run: |
+          echo "📁 Creating distribution files..."
+          mkdir -p dist
+          cp web/index.html dist/
+          cp pkg/space_looter.js dist/
+          cp pkg/space_looter_bg.wasm dist/
+
+          # Add version info to index.html
+          sed -i "s|<title>Space Looter</title>|<title>Space Looter ${{ github.ref_name }}</title>|g" dist/index.html
+
+          echo "📊 Build statistics:"
+          du -h dist/*
+
+      - name: Checkout deploy branch
+        uses: actions/checkout@v4
+        with:
+          ref: deploy
+          path: deploy-branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update deploy branch
+        run: |
+          # Copy built files to deploy branch
+          cp -r dist/* deploy-branch/
+
+          # Create deployment info
+          cd deploy-branch
+          echo "# Space Looter Deployment" > DEPLOYMENT.md
+          echo "" >> DEPLOYMENT.md
+          echo "**Version:** ${{ github.ref_name }}" >> DEPLOYMENT.md
+          echo "**Built at:** $(date -u)" >> DEPLOYMENT.md
+          echo "**Commit:** ${{ github.sha }}" >> DEPLOYMENT.md
+          echo "**Build:** GitHub Actions #${{ github.run_number }}" >> DEPLOYMENT.md
+          echo "" >> DEPLOYMENT.md
+          echo "## Files" >> DEPLOYMENT.md
+          echo "\`\`\`" >> DEPLOYMENT.md
+          ls -la >> DEPLOYMENT.md
+          echo "\`\`\`" >> DEPLOYMENT.md
+
+      - name: Commit and push to deploy branch
+        run: |
+          cd deploy-branch
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy ${{ github.ref_name }}
+
+            - Built from commit: ${{ github.sha }}
+            - Build #${{ github.run_number }}
+            - Generated at: $(date -u)"
+
+            git push origin deploy
+            echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
+          fi
+
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** deploy" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files deployed:" >> $GITHUB_STEP_SUMMARY
+          echo "- index.html" >> $GITHUB_STEP_SUMMARY
+          echo "- space_looter.js" >> $GITHUB_STEP_SUMMARY
+          echo "- space_looter_bg.wasm" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Netlify will auto-deploy from the 'deploy' branch**" >> $GITHUB_STEP_SUMMARY

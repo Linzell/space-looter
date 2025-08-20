@@ -1,16 +1,10 @@
 [build]
-command = "chmod +x netlify-build.sh && ./netlify-build.sh"
-publish = "dist"
+# No build command - files are pre-built by GitHub Actions
+publish = "."
 
-[build.environment]
-RUST_VERSION = "1.83.0"
-NODE_VERSION = "18"
-CARGO_NET_GIT_FETCH_WITH_CLI = "true"
-RUST_LOG = "error"
-
-# Install Rust and required tools
+# Skip build processing since files are already built
 [build.processing]
-skip_processing = false
+skip_processing = true
 
 # Headers for WASM and security
 [[headers]]
