@@ -1,0 +1,52 @@
+[build]
+command = "./build-web.sh"
+publish = "dist"
+
+[build.environment]
+RUST_VERSION = "1.83.0"
+NODE_VERSION = "18"
+CARGO_NET_GIT_FETCH_WITH_CLI = "true"
+RUST_LOG = "error"
+
+# Install Rust and required tools
+[build.processing]
+skip_processing = false
+
+# Headers for WASM and security
+[[headers]]
+for = "/*"
+[headers.values]
+Cross-Origin-Embedder-Policy = "require-corp"
+Cross-Origin-Opener-Policy = "same-origin"
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+
+# WASM MIME type
+[[headers]]
+for = "*.wasm"
+[headers.values]
+Content-Type = "application/wasm"
+Cache-Control = "public, max-age=31536000, immutable"
+
+# JavaScript files caching
+[[headers]]
+for = "*.js"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML files
+[[headers]]
+for = "*.html"
+[headers.values]
+Cache-Control = "public, max-age=0, must-revalidate"
+
+# Build settings for different contexts
+[context.production.environment]
+RUST_LOG = "error"
+
+[context.deploy-preview.environment]
+RUST_LOG = "warn"
+
+[context.branch-deploy.environment]
+RUST_LOG = "debug"
