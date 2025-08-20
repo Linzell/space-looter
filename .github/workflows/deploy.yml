@@ -12,28 +12,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+          rust-targets: "wasm32-unknown-unknown"
+          cache-key-suffix: "deploy"
 
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0

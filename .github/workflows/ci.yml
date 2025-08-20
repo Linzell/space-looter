@@ -15,29 +15,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-test-
-            ${{ runner.os }}-cargo-
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+          rust-components: "rustfmt,clippy"
+          cache-key-suffix: "test"
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -59,29 +41,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
-            ${{ runner.os }}-cargo-
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+          rust-targets: "wasm32-unknown-unknown"
+          cache-key-suffix: "build"
 
       - name: Build native version
         run: cargo build --release --no-default-features
@@ -119,13 +83,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev pkg-config
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
+        with:
+          cache-key-suffix: "audit"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit
