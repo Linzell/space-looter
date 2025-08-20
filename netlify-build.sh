@@ -20,32 +20,31 @@ export RUST_LOG=${RUST_LOG:-error}
 
 echo -e "${BLUE}📋 Setting up build environment...${NC}"
 
-# Install Rust if not present
-if ! command -v rustc &> /dev/null; then
-    echo -e "${YELLOW}Installing Rust...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-    source ~/.cargo/env
-else
-    echo -e "${GREEN}✅ Rust already available: $(rustc --version)${NC}"
-fi
+# Install Rust (always fresh install to avoid partial installations)
+echo -e "${YELLOW}Installing Rust...${NC}"
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 
-# Ensure cargo is in PATH
+# Source cargo environment
+source ~/.cargo/env
 export PATH="$HOME/.cargo/bin:$PATH"
+
+# Verify Rust installation
+echo -e "${GREEN}✅ Rust installed: $(rustc --version)${NC}"
+echo -e "${GREEN}✅ Cargo installed: $(cargo --version)${NC}"
 
 # Add WASM target
 echo -e "${BLUE}Adding WASM target...${NC}"
 rustup target add wasm32-unknown-unknown
 
 # Install wasm-pack
-if ! command -v wasm-pack &> /dev/null; then
-    echo -e "${YELLOW}Installing wasm-pack...${NC}"
-    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-else
-    echo -e "${GREEN}✅ wasm-pack already available: $(wasm-pack --version)${NC}"
-fi
+echo -e "${YELLOW}Installing wasm-pack...${NC}"
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Ensure wasm-pack is in PATH
 export PATH="$HOME/.cargo/bin:$PATH"
+
+# Verify wasm-pack installation
+echo -e "${GREEN}✅ wasm-pack installed: $(wasm-pack --version)${NC}"
 
 # Make build script executable
 chmod +x build-web.sh
