@@ -165,13 +165,6 @@ git push origin v1.0.0
    - **Publish directory**: `.`
 4. **Deploy**: Create your first tag!
 
-#### Benefits
-- ✅ **No build timeouts** (GitHub Actions: 6 hours vs Netlify: 18 minutes)
-- ✅ **Fast builds** with Rust dependency caching
-- ✅ **Controlled releases** - you choose when to deploy
-- ✅ **Instant deploys** - Netlify just serves static files
-- ✅ **Easy rollbacks** - switch to previous tag on deploy branch
-
 ### Alternative: Manual Deployment
 
 #### Option 1: Direct Build & Deploy
