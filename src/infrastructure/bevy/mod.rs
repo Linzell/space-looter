@@ -15,8 +15,8 @@ pub mod resources;
 pub mod systems;
 
 // Re-export common Bevy integration types
-pub use components::{EnemyComponent, PlayerComponent};
-pub use resources::{GameSessionResource, ScoreResource};
+pub use components::{EnemyComponent, PlayerComponent, ScoreDisplayComponent, VelocityComponent};
+pub use resources::{GameBoundariesResource, GameSessionResource, ScoreResource};
 pub use systems::*;
 
 use crate::infrastructure::InfrastructureError;
@@ -110,18 +110,24 @@ pub enum BevySystemSet {
 /// Helper functions for Bevy integration
 pub mod helpers {
     use super::*;
-    use crate::domain::{Position, Velocity};
+    use crate::domain::{Position3D, Velocity};
 
-    /// Convert domain Position to Bevy Transform
-    pub fn position_to_transform(position: &Position) -> Transform {
-        Transform::from_translation(Vec3::new(position.x(), position.y(), 0.0))
+    /// Convert domain Position3D to Bevy Transform
+    pub fn position_to_transform(position: &Position3D) -> Transform {
+        Transform::from_translation(Vec3::new(
+            position.x as f32,
+            position.y as f32,
+            position.z as f32,
+        ))
     }
 
-    /// Convert Bevy Transform to domain Position
-    pub fn transform_to_position(transform: &Transform) -> Result<Position, InfrastructureError> {
-        Position::new(transform.translation.x, transform.translation.y).map_err(|e| {
-            InfrastructureError::BevyError(format!("Transform conversion failed: {}", e))
-        })
+    /// Convert Bevy Transform to domain Position3D
+    pub fn transform_to_position(transform: &Transform) -> Result<Position3D, InfrastructureError> {
+        Ok(Position3D::new(
+            transform.translation.x as i32,
+            transform.translation.y as i32,
+            transform.translation.z as i32,
+        ))
     }
 
     /// Convert domain Velocity to Bevy Vec3
@@ -140,15 +146,16 @@ pub mod helpers {
 mod tests {
     use super::helpers::*;
     use super::*;
+    use crate::domain::{Position3D, Velocity};
 
     #[test]
     fn position_transform_conversion() {
-        let position = crate::domain::Position::new(10.0, 20.0).unwrap();
+        let position = Position3D::new(10, 20, 5);
         let transform = position_to_transform(&position);
 
         assert_eq!(transform.translation.x, 10.0);
         assert_eq!(transform.translation.y, 20.0);
-        assert_eq!(transform.translation.z, 0.0);
+        assert_eq!(transform.translation.z, 5.0);
 
         let converted_back = transform_to_position(&transform).unwrap();
         assert_eq!(converted_back, position);
@@ -156,7 +163,7 @@ mod tests {
 
     #[test]
     fn velocity_vec3_conversion() {
-        let velocity = crate::domain::Velocity::new(5.0, -3.0).unwrap();
+        let velocity = Velocity::new(5.0, -3.0).unwrap();
         let vec3 = velocity_to_vec3(&velocity);
 
         assert_eq!(vec3.x, 5.0);

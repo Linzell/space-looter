@@ -16,10 +16,12 @@
 
 pub mod collision;
 pub mod spawning;
+pub mod tile_movement;
 
 // Re-export services for convenience
 pub use collision::CollisionService;
 pub use spawning::SpawningService;
+pub use tile_movement::TileMovementService;
 
 #[cfg(test)]
 mod tests {

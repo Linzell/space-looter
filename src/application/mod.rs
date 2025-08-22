@@ -21,7 +21,7 @@ pub mod use_cases;
 // Re-export common application types
 pub use services::{GameSessionService, InputHandlerService};
 pub use use_cases::{
-    HandleCollisionUseCase, MovePlayerUseCase, SpawnEnemiesUseCase, UpdateScoreUseCase,
+    HandleEncounterUseCase, MovePlayerUseCase, SpawnEnemiesUseCase, UpdateScoreUseCase,
 };
 
 /// Application-specific error types

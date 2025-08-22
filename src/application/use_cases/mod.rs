@@ -22,7 +22,7 @@ pub mod spawn_enemies;
 pub mod update_score;
 
 // Re-export use cases for convenience
-pub use handle_collision::HandleCollisionUseCase;
+pub use handle_collision::HandleEncounterUseCase;
 pub use move_player::MovePlayerUseCase;
 pub use spawn_enemies::SpawnEnemiesUseCase;
 pub use update_score::UpdateScoreUseCase;

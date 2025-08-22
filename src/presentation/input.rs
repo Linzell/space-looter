@@ -284,15 +284,20 @@ fn is_action_valid_in_context(action: &GameAction, context: &InputContext) -> bo
 /// System for updating input context based on game state
 pub fn update_input_context(
     mut input_context: ResMut<InputContext>,
-    current_state: Res<State<crate::presentation::AppState>>,
+    current_state: Res<State<crate::presentation::RpgAppState>>,
 ) {
     let new_context = match current_state.get() {
-        crate::presentation::AppState::Loading => InputContext::Loading,
-        crate::presentation::AppState::MainMenu => InputContext::MainMenu,
-        crate::presentation::AppState::Playing => InputContext::InGame,
-        crate::presentation::AppState::Paused => InputContext::Paused,
-        crate::presentation::AppState::GameOver => InputContext::GameOver,
-        crate::presentation::AppState::Settings => InputContext::Settings,
+        crate::presentation::RpgAppState::Loading => InputContext::Loading,
+        crate::presentation::RpgAppState::MainMenu => InputContext::MainMenu,
+        crate::presentation::RpgAppState::CharacterCreation => InputContext::MainMenu,
+        crate::presentation::RpgAppState::Exploration => InputContext::InGame,
+        crate::presentation::RpgAppState::Combat => InputContext::InGame,
+        crate::presentation::RpgAppState::BaseManagement => InputContext::InGame,
+        crate::presentation::RpgAppState::QuestLog => InputContext::InGame,
+        crate::presentation::RpgAppState::Inventory => InputContext::InGame,
+        crate::presentation::RpgAppState::Settings => InputContext::Settings,
+        crate::presentation::RpgAppState::Paused => InputContext::Paused,
+        crate::presentation::RpgAppState::GameOver => InputContext::GameOver,
     };
 
     if *input_context != new_context {

@@ -3,7 +3,7 @@
 //! Handles collision detection and resolution between game entities
 //! following business rules for the Space Looter game.
 
-use crate::domain::{DomainError, DomainResult, Position};
+use crate::domain::{DomainError, DomainResult, Position, Position3D};
 
 /// Service for handling collision detection and resolution
 pub struct CollisionService;
@@ -118,8 +118,8 @@ mod tests {
     #[test]
     fn check_collision_within_radius() {
         let service = collision_service();
-        let pos1 = Position::new(0.0, 0.0).unwrap();
-        let pos2 = Position::new(5.0, 0.0).unwrap();
+        let pos1 = Position3D::new(0, 0, 0);
+        let pos2 = Position3D::new(5, 0, 0);
 
         let result = service.check_collision(&pos1, &pos2, 10.0).unwrap();
         assert!(result);
@@ -131,8 +131,8 @@ mod tests {
     #[test]
     fn check_collision_invalid_radius() {
         let service = collision_service();
-        let pos1 = Position::new(0.0, 0.0).unwrap();
-        let pos2 = Position::new(5.0, 0.0).unwrap();
+        let pos1 = Position3D::new(0, 0, 0);
+        let pos2 = Position3D::new(15, 0, 0);
 
         assert!(service.check_collision(&pos1, &pos2, 0.0).is_err());
         assert!(service.check_collision(&pos1, &pos2, -5.0).is_err());
@@ -141,9 +141,8 @@ mod tests {
     #[test]
     fn player_enemy_collision_check() {
         let service = collision_service();
-        let player_pos = Position::new(0.0, 0.0).unwrap();
-        let enemy_pos =
-            Position::new(crate::domain::constants::COLLISION_RADIUS / 2.0, 0.0).unwrap();
+        let player_pos = Position3D::new(0, 0, 0);
+        let enemy_pos = Position3D::new(10, 0, 0);
 
         let result = service
             .check_player_enemy_collision(&player_pos, &enemy_pos)
@@ -156,8 +155,8 @@ mod tests {
         let service = collision_service();
         let boundaries = crate::domain::GameBoundaries::standard();
 
-        let inside_pos = Position::new(0.0, 0.0).unwrap();
-        let outside_pos = Position::new(1000.0, 1000.0).unwrap();
+        let inside_pos = Position3D::new(0, 0, 0);
+        let outside_pos = Position3D::new(1000, 1000, 0);
 
         assert!(!service.check_boundary_collision(&inside_pos, &boundaries));
         assert!(service.check_boundary_collision(&outside_pos, &boundaries));

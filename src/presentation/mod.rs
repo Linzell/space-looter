@@ -17,11 +17,13 @@
 //! - Manages presentation logic (not business logic)
 
 pub mod game_state;
+pub mod game_ui;
 pub mod input;
+pub mod map_renderer;
 pub mod rendering;
 
 // Re-export common presentation types
-pub use game_state::AppState;
+pub use game_state::RpgAppState;
 pub use input::{GameAction, InputMapper};
 
 use bevy::prelude::*;
@@ -156,8 +158,8 @@ mod tests {
     #[test]
     fn app_state_transitions() {
         // Test that states can be created and compared
-        assert_eq!(AppState::default(), AppState::Loading);
-        assert_ne!(AppState::Loading, AppState::Playing);
+        assert_eq!(RpgAppState::default(), RpgAppState::Loading);
+        assert_ne!(RpgAppState::Loading, RpgAppState::Exploration);
     }
 
     #[test]

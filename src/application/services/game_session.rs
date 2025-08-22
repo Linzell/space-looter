@@ -28,8 +28,14 @@ impl GameSessionService {
             ));
         }
 
-        let session =
-            GameSession::new(session_id.clone()).map_err(|e| ApplicationError::DomainError(e))?;
+        let session = GameSession::new(
+            session_id.clone(),
+            crate::domain::EntityId::generate(), // player_id
+            crate::domain::EntityId::generate(), // map_id
+            crate::domain::entities::game::DifficultyLevel::Normal,
+            crate::domain::WorldBoundaries::standard(),
+        )
+        .map_err(|e| ApplicationError::DomainError(e))?;
 
         self.active_sessions.insert(session_id.clone(), session);
         Ok(session_id)

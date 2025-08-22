@@ -4,7 +4,7 @@
 //! managing rendering systems, visual effects, and display coordination.
 //! It acts as a bridge between the game logic and visual output.
 
-use crate::domain::{Position, Score};
+use crate::domain::{Position3D, Score};
 use bevy::prelude::*;
 use std::time::Duration;
 
@@ -310,7 +310,7 @@ pub fn camera_follow_system(
 pub fn update_ui_render_state_system(
     time: Res<Time>,
     score_resource: Option<Res<crate::infrastructure::bevy::resources::ScoreResource>>,
-    game_state: Option<Res<crate::presentation::game_state::GameStateData>>,
+    game_state: Option<Res<crate::presentation::game_state::RpgGameSession>>,
     config: Res<RenderingConfig>,
     mut ui_state: ResMut<UIRenderState>,
 ) {
@@ -324,7 +324,8 @@ pub fn update_ui_render_state_system(
 
     // Update time if available
     if let Some(game_data) = game_state {
-        ui_state.update_time(game_data.session_time);
+        let duration = std::time::Duration::from_secs(game_data.total_play_time as u64);
+        ui_state.update_time(duration);
     }
 
     // Update debug info if enabled
@@ -421,15 +422,23 @@ pub mod utils {
     use super::*;
 
     /// Convert domain position to world coordinates
-    pub fn domain_to_world_position(position: &Position) -> Vec3 {
-        Vec3::new(position.x(), position.y(), 0.0)
+    pub fn domain_to_world_position(position: &Position3D) -> Vec3 {
+        Vec3::new(
+            position.x() as f32,
+            position.y() as f32,
+            position.z() as f32,
+        )
     }
 
     /// Convert world coordinates to domain position
     pub fn world_to_domain_position(
-        world_pos: Vec3,
-    ) -> Result<Position, crate::domain::DomainError> {
-        Position::new(world_pos.x, world_pos.y)
+        world_pos: &Vec3,
+    ) -> Result<Position3D, crate::domain::DomainError> {
+        Ok(Position3D::new(
+            world_pos.x as i32,
+            world_pos.y as i32,
+            world_pos.z as i32,
+        ))
     }
 
     /// Create a flash effect for collision
@@ -512,7 +521,7 @@ mod tests {
     #[test]
     fn ui_render_state_updates() {
         let mut ui_state = UIRenderState::default();
-        let score = Score::from(1000);
+        let score = Score::new(1000).unwrap();
 
         ui_state.update_score(&score);
         assert_eq!(ui_state.score_text, "Score: 1,000");
@@ -554,12 +563,12 @@ mod tests {
 
     #[test]
     fn rendering_utils_position_conversion() {
-        let domain_pos = Position::new(10.0, 20.0).unwrap();
+        let domain_pos = Position3D::new(10, 20, 0);
         let world_pos = utils::domain_to_world_position(&domain_pos);
 
         assert_eq!(world_pos, Vec3::new(10.0, 20.0, 0.0));
 
-        let converted_back = utils::world_to_domain_position(world_pos).unwrap();
+        let converted_back = utils::world_to_domain_position(&world_pos).unwrap();
         assert_eq!(converted_back, domain_pos);
     }
 

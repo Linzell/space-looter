@@ -20,13 +20,13 @@ impl MovePlayerUseCase {
     /// Execute player movement with business rules
     pub fn execute(&self, input: MovePlayerInput) -> ApplicationResult<MovePlayerOutput> {
         // Create velocity from input direction and speed
-        let velocity = Velocity::from_direction(input.direction_x, input.direction_y, input.speed)
-            .map_err(|e| crate::application::ApplicationError::DomainError(e))?;
+        let velocity =
+            Velocity::from_direction((input.direction_x, input.direction_y), input.speed)
+                .map_err(|e| crate::application::ApplicationError::DomainError(e))?;
 
         // For now, just return the calculated values
         // In a real implementation, this would update the player entity
-        let new_position = Position::new(0.0, 0.0)
-            .map_err(|e| crate::application::ApplicationError::DomainError(e))?;
+        let new_position = Position::new(0, 0, 0);
 
         Ok(MovePlayerOutput {
             player_id: input.player_id,

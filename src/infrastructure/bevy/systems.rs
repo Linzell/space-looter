@@ -46,17 +46,16 @@ pub fn spawn_player(mut commands: Commands) {
     info!("Spawning player");
 
     // Create domain player entity
-    let position =
-        crate::domain::Position::new(0.0, -250.0).expect("Invalid player spawn position");
-    let velocity = crate::domain::Velocity::zero();
+    let position = crate::domain::Position3D::new(0, -250, 0);
+    let entity_id = crate::domain::EntityId::generate();
+    let starting_stats = crate::domain::PlayerStats::new(10, 10, 10, 10, 10, 10).unwrap();
 
-    let player = crate::domain::Player::new(
-        "player_1".to_string(),
-        position,
-        velocity,
-        constants::DEFAULT_PLAYER_SPEED,
-    )
-    .expect("Failed to create player");
+    let player =
+        crate::domain::Player::new(entity_id, "player_1".to_string(), position, starting_stats)
+            .expect("Failed to create player");
+
+    // Create velocity for compatibility
+    let velocity = crate::domain::Velocity::new(0.0, 0.0).unwrap();
 
     // Spawn Bevy entity with components
     commands.spawn((
@@ -68,7 +67,11 @@ pub fn spawn_player(mut commands: Commands) {
             )),
             ..default()
         },
-        Transform::from_translation(Vec3::new(position.x(), position.y(), 0.0)),
+        Transform::from_translation(Vec3::new(
+            position.x() as f32,
+            position.y() as f32,
+            position.z() as f32,
+        )),
         PlayerComponent::new(player),
         VelocityComponent::new(velocity),
     ));
@@ -79,7 +82,7 @@ pub fn player_input_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut query: Query<(&mut PlayerComponent, &mut VelocityComponent)>,
 ) {
-    for (player_comp, mut velocity_comp) in query.iter_mut() {
+    for (_player_comp, mut velocity_comp) in query.iter_mut() {
         let mut direction_x = 0.0;
         let mut direction_y = 0.0;
 
@@ -98,11 +101,9 @@ pub fn player_input_system(
         }
 
         // Update velocity based on input
-        if let Ok(new_velocity) = crate::domain::Velocity::from_direction(
-            direction_x,
-            direction_y,
-            player_comp.player().speed(),
-        ) {
+        if let Ok(new_velocity) =
+            crate::domain::Velocity::from_direction((direction_x, direction_y), 200.0)
+        {
             *velocity_comp.velocity_mut() = new_velocity;
         }
     }
@@ -123,21 +124,26 @@ pub fn movement_system(
 
     for (mut transform, velocity_comp) in query.iter_mut() {
         // Convert current transform to domain position
-        if let Ok(current_position) =
-            crate::domain::Position::new(transform.translation.x, transform.translation.y)
-        {
-            // Calculate new position
-            if let Ok(new_position) =
-                current_position.move_by_velocity(velocity_comp.velocity(), time.delta_secs())
-            {
-                // Clamp to game boundaries
-                let clamped_position = boundaries.clamp(new_position);
+        let current_position = crate::domain::Position3D::new(
+            transform.translation.x as i32,
+            transform.translation.y as i32,
+            transform.translation.z as i32,
+        );
 
-                // Update transform
-                transform.translation.x = clamped_position.x();
-                transform.translation.y = clamped_position.y();
-            }
-        }
+        // Calculate new position with simple velocity integration
+        let velocity = velocity_comp.velocity();
+        let new_x = current_position.x() as f32 + velocity.dx() * time.delta_secs();
+        let new_y = current_position.y() as f32 + velocity.dy() * time.delta_secs();
+
+        let new_position =
+            crate::domain::Position3D::new(new_x as i32, new_y as i32, current_position.z());
+
+        // Clamp to game boundaries
+        let clamped_position = boundaries.clamp(new_position);
+
+        // Update transform
+        transform.translation.x = clamped_position.x() as f32;
+        transform.translation.y = clamped_position.y() as f32;
     }
 }
 
@@ -153,17 +159,17 @@ pub fn enemy_spawning_system(mut commands: Commands, time: Res<Time>, mut timer:
     if timer.just_finished() {
         // Generate random spawn position at top of screen
         let x_pos = (simple_random() - 0.5) * 600.0;
-        let spawn_position =
-            crate::domain::Position::new(x_pos, 300.0).expect("Invalid enemy spawn position");
+        let spawn_position = crate::domain::Position3D::new(x_pos as i32, 300, 0);
 
         let enemy_velocity = crate::domain::Velocity::new(0.0, -constants::DEFAULT_ENEMY_SPEED)
             .expect("Invalid enemy velocity");
 
         // Create domain enemy
         let enemy_id = format!("enemy_{}", time.elapsed_secs_f64());
+        let spawn_position_3d = spawn_position;
         let enemy = crate::domain::Enemy::new(
             enemy_id,
-            spawn_position,
+            spawn_position_3d,
             enemy_velocity,
             crate::domain::EnemyType::Basic,
         )
@@ -176,7 +182,11 @@ pub fn enemy_spawning_system(mut commands: Commands, time: Res<Time>, mut timer:
                 custom_size: Some(Vec2::new(constants::ENEMY_SIZE.0, constants::ENEMY_SIZE.1)),
                 ..default()
             },
-            Transform::from_translation(Vec3::new(spawn_position.x(), spawn_position.y(), 0.0)),
+            Transform::from_translation(Vec3::new(
+                spawn_position_3d.x() as f32,
+                spawn_position_3d.y() as f32,
+                spawn_position_3d.z() as f32,
+            )),
             EnemyComponent::new(enemy),
             VelocityComponent::new(enemy_velocity),
         ));
@@ -202,9 +212,10 @@ pub fn collision_system(
                 // Collision detected - remove enemy and update score
                 commands.entity(enemy_entity).despawn();
 
-                if let Ok(new_score) = score_resource.score.add_enemy_points() {
-                    score_resource.score = new_score;
-                    info!("Collision! New score: {}", new_score);
+                if let Ok(()) = score_resource.score.add_enemy_points() {
+                    info!("Collision! New score: {}", score_resource.score);
+                } else {
+                    warn!("Failed to add enemy points to score");
                 }
             }
         }

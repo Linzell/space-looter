@@ -1,14 +1,35 @@
 [package]
 name = "space-looter"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "A 3D isometric space exploration RPG with dice-based mechanics"
+authors = ["Space Looter Team"]
+license = "MIT"
+repository = "https://github.com/your-username/space-looter"
+keywords = ["game", "rpg", "dice", "3d", "isometric", "space", "exploration"]
+categories = ["games"]
+
+[[bin]]
+name = "space-looter"
+path = "src/main.rs"
 
 [lib]
+name = "space_looter"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# Core game engine with 3D support
 bevy = { version = "0.16.1", features = ["webgl2"] }
+
+# RPG mechanics and data handling
 chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Dice rolling and procedural generation
+rand = { version = "0.8", features = ["getrandom"] }
+fastrand = "2.0"
+noise = "0.9"
 
 # Web-specific dependencies (only for WASM builds)
 web-sys = { version = "0.3", features = [
