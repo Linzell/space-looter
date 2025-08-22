@@ -262,6 +262,9 @@ pub enum DomainError {
     ValidationError(String),
     ConfigurationError(String),
 
+    // Service errors
+    ServiceError { service: String, reason: String },
+
     // Backward compatibility error types
     CollisionError(String),
     InvalidVelocity(f32, f32),
@@ -298,6 +301,9 @@ impl std::fmt::Display for DomainError {
                 write!(f, "Building requirements not met: {}", msg)
             }
             DomainError::EventTriggerError(msg) => write!(f, "Event trigger error: {}", msg),
+            DomainError::ServiceError { service, reason } => {
+                write!(f, "{} service error: {}", service, reason)
+            }
             DomainError::InvalidEventType(msg) => write!(f, "Invalid event type: {}", msg),
             DomainError::QuestError(msg) => write!(f, "Quest error: {}", msg),
             DomainError::QuestRequirementsNotMet(msg) => {

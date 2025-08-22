@@ -14,7 +14,7 @@ use rand::Rng;
 use std::collections::HashMap;
 
 /// Service for handling tile-based movement with dice events
-#[derive(Debug)]
+#[derive(Debug, bevy::prelude::Resource)]
 pub struct TileMovementService {
     /// Cached event templates for different outcomes
     event_templates: HashMap<EventCategory, Vec<EventTemplate>>,

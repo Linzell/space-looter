@@ -11,11 +11,13 @@
 //! - **Plugins**: Bevy plugins for organizing functionality
 
 pub mod components;
+pub mod font_service;
 pub mod resources;
 pub mod systems;
 
 // Re-export common Bevy integration types
 pub use components::{EnemyComponent, PlayerComponent, ScoreDisplayComponent, VelocityComponent};
+pub use font_service::{BevyFontService, FontPlugin};
 pub use resources::{GameBoundariesResource, GameSessionResource, ScoreResource};
 pub use systems::*;
 

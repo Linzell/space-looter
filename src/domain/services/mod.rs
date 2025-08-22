@@ -15,11 +15,15 @@
 //! - Clear single responsibility
 
 pub mod collision;
+pub mod font_service;
+pub mod resting_service;
 pub mod spawning;
 pub mod tile_movement;
 
 // Re-export services for convenience
 pub use collision::CollisionService;
+pub use font_service::{FontConfig, FontService, FontSize, FontType, FontWeight};
+pub use resting_service::RestingService;
 pub use spawning::SpawningService;
 pub use tile_movement::TileMovementService;
 

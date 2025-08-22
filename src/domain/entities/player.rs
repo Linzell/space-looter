@@ -208,6 +208,32 @@ impl Player {
         self.update_timestamp();
     }
 
+    /// Add movement points (capped at maximum)
+    pub fn add_movement_points(&mut self, points: u8) {
+        self.movement_points =
+            (self.movement_points.saturating_add(points)).min(self.max_movement_points);
+        self.update_timestamp();
+    }
+
+    /// Add action points (capped at maximum)
+    pub fn add_action_points(&mut self, points: u8) {
+        self.action_points =
+            (self.action_points.saturating_add(points)).min(self.max_action_points);
+        self.update_timestamp();
+    }
+
+    /// Subtract movement points safely (won't go below 0)
+    pub fn subtract_movement_points(&mut self, points: u8) {
+        self.movement_points = self.movement_points.saturating_sub(points);
+        self.update_timestamp();
+    }
+
+    /// Subtract action points safely (won't go below 0)
+    pub fn subtract_action_points(&mut self, points: u8) {
+        self.action_points = self.action_points.saturating_sub(points);
+        self.update_timestamp();
+    }
+
     /// Add experience points
     pub fn add_experience(&mut self, points: u32) -> DomainResult<bool> {
         let old_level = self.experience.level();

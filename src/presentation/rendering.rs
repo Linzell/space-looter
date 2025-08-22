@@ -5,6 +5,7 @@
 //! It acts as a bridge between the game logic and visual output.
 
 use crate::domain::{Position3D, Score};
+use crate::presentation::map_renderer::PlayerMarker;
 use bevy::prelude::*;
 use std::time::Duration;
 
@@ -267,18 +268,15 @@ pub fn apply_visual_effects_system(
 /// System for camera following
 pub fn camera_follow_system(
     time: Res<Time>,
-    mut camera_query: Query<
-        (&mut Transform, &CameraFollow),
-        (
-            With<Camera>,
-            Without<crate::infrastructure::bevy::components::PlayerComponent>,
-        ),
-    >,
+    mut camera_query: Query<(&mut Transform, &CameraFollow), With<Camera>>,
     target_query: Query<
         &Transform,
         (
             Without<Camera>,
-            With<crate::infrastructure::bevy::components::PlayerComponent>,
+            Or<(
+                With<crate::infrastructure::bevy::components::PlayerComponent>,
+                With<PlayerMarker>,
+            )>,
         ),
     >,
 ) {
@@ -408,7 +406,6 @@ impl Plugin for RenderingPlugin {
                 Update,
                 (
                     apply_visual_effects_system,
-                    camera_follow_system,
                     update_ui_render_state_system,
                     update_clear_color_system,
                     pulsing_ui_system,

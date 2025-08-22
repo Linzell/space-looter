@@ -23,6 +23,7 @@ impl Plugin for MapRendererPlugin {
         .add_systems(
             Update,
             (
+                setup_camera_following_system,
                 update_3d_map_system,
                 update_player_position_system,
                 update_console_map_system,
@@ -218,6 +219,43 @@ fn setup_3d_camera_system(mut commands: Commands) {
     });
 
     info!("✅ 3D isometric camera and lighting setup complete");
+}
+
+/// System to setup and maintain camera following - runs continuously to handle player respawn
+fn setup_camera_following_system(
+    mut camera_query: Query<
+        (&mut Transform, Entity),
+        (With<IsometricCamera>, Without<PlayerMarker>),
+    >,
+    player_query: Query<(Entity, &Transform), (With<PlayerMarker>, Without<IsometricCamera>)>,
+) {
+    // Always try to find the current player and update camera
+    if let Ok((player_entity, player_transform)) = player_query.single() {
+        for (mut camera_transform, _camera_entity) in camera_query.iter_mut() {
+            // Log camera following (only once by checking if we need to update position significantly)
+            let current_pos = camera_transform.translation;
+            let player_pos = player_transform.translation;
+            let expected_pos = player_pos + Vec3::new(10.0, 15.0, 10.0);
+
+            if (current_pos - expected_pos).length() > 5.0 {
+                info!("📹 Camera now following player entity: {:?}", player_entity);
+            }
+
+            // Position camera at isometric angle relative to player for proper centering
+            let camera_offset = Vec3::new(10.0, 15.0, 10.0);
+            let target_camera_pos = player_pos + camera_offset;
+
+            // Smooth camera movement with lower lerp factor to reduce trembling
+            let distance = (target_camera_pos - current_pos).length();
+
+            // Only update if distance is significant to prevent micro-movements
+            if distance > 0.1 {
+                camera_transform.translation = current_pos.lerp(target_camera_pos, 0.02);
+                // Always look at the player to keep them centered
+                camera_transform.look_at(player_pos, Vec3::Y);
+            }
+        }
+    }
 }
 
 /// Setup terrain materials (handled by FromWorld trait)
