@@ -30,6 +30,11 @@ jobs:
 
       - name: Deploy to deploy branch
         run: |
+          # Store built files before branch operations
+          mkdir -p /tmp/build-files
+          cp -r dist/* /tmp/build-files/
+          cp netlify.toml /tmp/build-files/
+
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -44,14 +49,8 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy only built files to deploy branch root
-          git checkout ${{ github.ref_name }} -- dist/
-          git checkout ${{ github.ref_name }} -- netlify.toml
-          git checkout ${{ github.ref_name }} -- .github/actions/setup-system-deps/action.yml
-
-          # Move built files to root and copy netlify config
-          mv dist/* .
-          rmdir dist
+          # Copy built files to deploy branch root
+          cp -r /tmp/build-files/* .
 
           # Add all files and commit
           git add .
