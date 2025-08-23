@@ -13,6 +13,7 @@ pub mod domain;
 pub mod infrastructure;
 pub mod presentation;
 
+use crate::domain::services::game_log_service::{GameLogService, GameLogType};
 use bevy::prelude::*;
 use bevy::time::{Timer, TimerMode};
 
@@ -55,6 +56,7 @@ pub fn create_app() -> App {
         infrastructure::bevy::font_service::FontPlugin,
         presentation::game_state::RpgStatePlugin,
         presentation::game_ui::GameUIPlugin,
+        presentation::game_log_integration::GameLogIntegrationPlugin,
         presentation::map_renderer::MapRendererPlugin,
         presentation::rendering::RenderingPlugin,
     ));
@@ -198,15 +200,16 @@ fn rpg_turn_management_system(
 
 /// RPG tile-based exploration with dice roll events
 fn rpg_exploration_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_resource: ResMut<infrastructure::bevy::resources::PlayerResource>,
     mut map_resource: ResMut<infrastructure::bevy::resources::MapResource>,
     mut game_stats: ResMut<infrastructure::bevy::resources::GameStatsResource>,
-    movement_service: Res<domain::services::TileMovementService>,
+    tile_movement_service: Res<domain::services::TileMovementService>,
     resting_service: Res<domain::services::RestingService>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut pending_movement: Local<Option<domain::Position3D>>,
     mut rest_timer: Local<Option<Timer>>,
     time: Res<Time>,
+    mut game_log: ResMut<GameLogService>,
 ) {
     if !player_resource.has_player() {
         return;
@@ -272,9 +275,14 @@ fn rpg_exploration_system(
             let map = map_resource.get_or_create_map(current_position);
 
             // Attempt tile movement with dice roll
-            match movement_service.attempt_movement(&player, target_position, &map, player_level) {
+            match tile_movement_service.attempt_movement(
+                &player,
+                target_position,
+                &map,
+                player_level,
+            ) {
                 Ok(movement_result) => {
-                    // Log dice roll result
+                    // Log dice roll result - console only (debug)
                     info!("🎲 {}", movement_result.dice_result.description());
                     info!(
                         "📍 Outcome: {}",
@@ -295,6 +303,14 @@ fn rpg_exploration_system(
                                 event.title(),
                                 event.description()
                             );
+                            game_log.log_message(
+                                format!(
+                                    "Event Triggered: {} - {}",
+                                    event.title(),
+                                    event.description()
+                                ),
+                                GameLogType::Event,
+                            );
 
                             // Process event outcomes based on type and dice result
                             process_movement_event(
@@ -302,6 +318,14 @@ fn rpg_exploration_system(
                                 &movement_result.dice_result,
                                 &mut player_resource,
                                 &mut game_stats,
+                                &mut game_log,
+                            );
+
+                            // Log event description
+                            info!("📖 {}", event.description());
+                            game_log.log_message(
+                                event.description().to_string(),
+                                GameLogType::Narrative,
                             );
                         } else {
                             info!("🚶 Safe movement - no events triggered");
@@ -311,6 +335,10 @@ fn rpg_exploration_system(
                             if let Some(player) = player_resource.get_player_mut() {
                                 player.add_movement_points(2);
                                 info!("🏃 Safe exploration grants 2 movement points");
+                                game_log.log_message(
+                                    "Safe exploration grants 2 movement points".to_string(),
+                                    GameLogType::Resources,
+                                );
                             }
                         }
                     }
@@ -320,12 +348,24 @@ fn rpg_exploration_system(
                     match e {
                         domain::DomainError::InvalidMapCoordinates(..) => {
                             info!("🚫 Can only move to adjacent tiles!");
+                            game_log.log_message(
+                                "Can only move to adjacent tiles".to_string(),
+                                GameLogType::Warning,
+                            );
                         }
                         domain::DomainError::TileNotAccessible(..) => {
                             info!("🚫 That tile is not passable!");
+                            game_log.log_message(
+                                "That tile is not passable".to_string(),
+                                GameLogType::Warning,
+                            );
                         }
                         domain::DomainError::InsufficientResources(_) => {
                             info!("⚡ Not enough movement points!");
+                            game_log.log_message(
+                                "Not enough movement points".to_string(),
+                                GameLogType::Warning,
+                            );
 
                             // Check if player can't make any moves - trigger rest
                             if let Some(player) = player_resource.get_player() {
@@ -363,6 +403,10 @@ fn rpg_exploration_system(
 
                                 if !can_move_anywhere {
                                     info!("🌙 You are exhausted and must rest for the night...");
+                                    game_log.log_message(
+                                        "You are exhausted and must rest for the night".to_string(),
+                                        GameLogType::System,
+                                    );
 
                                     // Store the failed movement to retry after rest
                                     *pending_movement = Some(target_position);
@@ -375,22 +419,56 @@ fn rpg_exploration_system(
                                         {
                                             Ok(rest_result) => {
                                                 info!("🌅 Dawn breaks after a night of rest");
+                                                game_log.log_message(
+                                                    "Dawn breaks after a night of rest".to_string(),
+                                                    GameLogType::System,
+                                                );
+
                                                 info!(
                                                     "🎲 Night Roll: {} - {}",
                                                     rest_result.dice_roll, rest_result.night_event
                                                 );
+                                                game_log.log_message(
+                                                    format!(
+                                                        "Night Roll: {} - {}",
+                                                        rest_result.dice_roll,
+                                                        rest_result.night_event
+                                                    ),
+                                                    GameLogType::Rest,
+                                                );
+
                                                 info!(
                                                     "😴 Rest Quality: {}",
                                                     rest_result.rest_outcome
                                                 );
+                                                game_log.log_message(
+                                                    format!(
+                                                        "Rest Quality: {}",
+                                                        rest_result.rest_outcome
+                                                    ),
+                                                    GameLogType::Rest,
+                                                );
+
                                                 info!("📖 {}", rest_result.description);
+                                                game_log.log_message(
+                                                    rest_result.description.clone(),
+                                                    GameLogType::Narrative,
+                                                );
 
                                                 if !rest_result.resources_gained.is_empty() {
+                                                    let resources_text = format_resource_summary(
+                                                        &rest_result.resources_gained,
+                                                    );
                                                     info!(
                                                         "💰 Resources gained during rest: {}",
-                                                        format_resource_summary(
-                                                            &rest_result.resources_gained
-                                                        )
+                                                        resources_text
+                                                    );
+                                                    game_log.log_message(
+                                                        format!(
+                                                            "Resources gained during rest: {}",
+                                                            resources_text
+                                                        ),
+                                                        GameLogType::Resources,
                                                     );
                                                 }
 
@@ -410,8 +488,15 @@ fn rpg_exploration_system(
 
                                                 info!(
                                                     "🏃 Movement points restored: {} - resting for {} seconds...",
-                                                    rest_result.movement_points_restored,
+                                                    player_mut.movement_points(),
                                                     rest_duration.as_secs()
+                                                );
+                                                game_log.log_message(
+                                                    format!("Movement points restored: {} - resting for {} seconds",
+                                                        player_mut.movement_points(),
+                                                        rest_duration.as_secs()
+                                                    ),
+                                                    GameLogType::System
                                                 );
                                                 info!("💤 {} You feel drowsy and must rest before moving again",
                                                     match rest_result.rest_outcome {
@@ -480,6 +565,7 @@ fn process_movement_event(
     dice_result: &domain::services::tile_movement::MovementDiceResult,
     player_resource: &mut infrastructure::bevy::resources::PlayerResource,
     game_stats: &mut infrastructure::bevy::resources::GameStatsResource,
+    game_log: &mut ResMut<GameLogService>,
 ) {
     use domain::entities::EventType;
     use domain::value_objects::resources::ResourceCollection;
@@ -505,6 +591,13 @@ fn process_movement_event(
             info!(
                 "🏃 Gained {} movement points from successful exploration!",
                 movement_reward
+            );
+            game_log.log_message(
+                format!(
+                    "Gained {} movement points from successful exploration!",
+                    movement_reward
+                ),
+                GameLogType::Resources,
             );
         }
     }

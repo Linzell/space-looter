@@ -16,9 +16,12 @@
 //! - Translates between user actions and application commands
 //! - Manages presentation logic (not business logic)
 
+pub mod game_event_logger;
+pub mod game_log_integration;
 pub mod game_state;
 pub mod game_ui;
 pub mod input;
+pub mod log_interceptor;
 pub mod map_renderer;
 pub mod rendering;
 

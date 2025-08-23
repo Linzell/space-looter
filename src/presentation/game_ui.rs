@@ -4,6 +4,7 @@
 //! space terminology, and immersive visual elements for the Space Looter RPG.
 
 use crate::domain::services::font_service::{FontService, FontSize, FontType};
+use crate::domain::services::game_log_service::{GameLogService, GameLogType};
 use crate::domain::value_objects::terrain::TerrainType;
 use crate::infrastructure::bevy::font_service::{BevyFontService, RegularText};
 use crate::infrastructure::bevy::resources::{GameStatsResource, MapResource, PlayerResource};
@@ -15,11 +16,13 @@ pub struct GameUIPlugin;
 
 impl Plugin for GameUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (initialize_space_icons, setup_space_ui))
+        app.init_resource::<GameLogService>()
+            .add_systems(Startup, (initialize_space_icons, setup_space_ui))
             .add_systems(
                 Update,
                 (
                     update_space_ui,
+                    update_game_log_display,
                     auto_start_exploration_system,
                     handle_ui_animations,
                     apply_fonts_to_ui_text,
@@ -58,6 +61,28 @@ pub struct ResourceBar;
 
 #[derive(Component)]
 pub struct AlertPanel;
+
+/// Component for the main game log panel
+#[derive(Component)]
+pub struct GameLogPanel;
+
+/// Component for individual log entries
+#[derive(Component)]
+pub struct GameLogEntry {
+    pub timestamp: std::time::Instant,
+    pub log_type: GameLogType,
+    pub fade_timer: Timer,
+}
+
+/// Component for the log scroll container
+#[derive(Component)]
+pub struct GameLogScrollArea;
+
+#[derive(Component)]
+pub struct LogScrollContainer;
+
+#[derive(Component)]
+pub struct LogContentArea;
 
 #[derive(Component)]
 pub struct RocketIcon;
@@ -133,351 +158,226 @@ fn setup_space_ui(mut commands: Commands) {
             Name::new("SpaceHUD_Root"),
         ))
         .with_children(|parent| {
-            // Top HUD Bar - Ship Status & Navigation
-            parent.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(10.0),
-                    top: Val::Px(10.0),
-                    padding: UiRect::all(Val::Px(8.0)),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(SpaceUIColors::HUD_BACKGROUND),
-                Name::new("TopHUD"),
-            ))
-            .with_children(|parent| {
-                // Rocket icon
-                parent.spawn((
-                    ImageNode {
-                        image: Handle::default(),
-                        ..default()
-                    },
-                    Node {
-                        width: Val::Px(20.0),
-                        height: Val::Px(20.0),
-                        margin: UiRect::right(Val::Px(8.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(1.0, 0.0, 0.0)),
-                    RocketIcon,
-                ));
-
-                // Status text
-                parent.spawn((
-                    Text::new("SPACE LOOTER | SECTOR [0,0] | STATUS: OPERATIONAL"),
-                    TextFont {
-                        font_size: FontSize::Medium.to_pixels(),
-                        ..default()
-                    },
-                    TextColor(SpaceUIColors::PRIMARY_TEXT),
-                    RegularText,
-                ));
-            });
-
             // Left Panel - Sector Scanner
-            parent.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(15.0),
-                    top: Val::Px(65.0),
-                    width: Val::Px(320.0),
-                    height: Val::Px(280.0),
-                    padding: UiRect::all(Val::Px(15.0)),
-                    flex_direction: FlexDirection::Column,
-                    ..default()
-                },
-                BackgroundColor(SpaceUIColors::SCANNER_BACKGROUND),
-                Name::new("SectorScanner"),
-            ))
-            .with_children(|parent| {
-                // Scanner Header
-                parent.spawn((
+            parent
+                .spawn((
                     Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::bottom(Val::Px(8.0)),
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(15.0),
+                        top: Val::Px(65.0),
+                        width: Val::Px(320.0),
+                        height: Val::Px(280.0),
+                        padding: UiRect::all(Val::Px(15.0)),
+                        flex_direction: FlexDirection::Column,
                         ..default()
                     },
+                    Name::new("SectorScanner"),
                 ))
                 .with_children(|parent| {
-                    // Satellite icon
-                    parent.spawn((
-                        ImageNode {
-                            image: Handle::default(),
+                    // Scanner Header
+                    parent
+                        .spawn((Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            margin: UiRect::bottom(Val::Px(8.0)),
                             ..default()
-                        },
-                        Node {
-                            width: Val::Px(16.0),
-                            height: Val::Px(16.0),
-                            margin: UiRect::right(Val::Px(8.0)),
-                            ..default()
-                        },
-                        SatelliteIcon,
-                    ));
-
-                    // Title text
-                    parent.spawn((
-                        Text::new("LONG RANGE SCANNER"),
-                        TextFont {
-                            font_size: FontSize::Medium.to_pixels(),
-                            ..default()
-                        },
-                        TextColor(SpaceUIColors::ENERGY_COLOR),
-                        RegularText,
-                        Name::new("ScannerTitle"),
-                    ));
-                });
-
-                // Coordinates Display
-                parent.spawn((
-                    Text::new("COORDINATES: [0, 0, 0] | SCANNING..."),
-                    TextFont {
-                        font_size: FontSize::Regular.to_pixels(),
-                        ..default()
-                    },
-                    TextColor(SpaceUIColors::SECONDARY_TEXT),
-                    Node {
-                        margin: UiRect::bottom(Val::Px(8.0)),
-                        ..default()
-                    },
-                    RegularText,
-                    SectorMapDisplay,
-                ));
-
-                // Scanner Grid (7x7 for better detail)
-                parent.spawn((
-                    Node {
-                        width: Val::Px(210.0),
-                        height: Val::Px(210.0),
-                        display: Display::Grid,
-                        grid_template_columns: RepeatedGridTrack::flex(7, 1.0),
-                        grid_template_rows: RepeatedGridTrack::flex(7, 1.0),
-                        column_gap: Val::Px(1.0),
-                        row_gap: Val::Px(1.0),
-                        margin: UiRect::bottom(Val::Px(8.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BorderColor(SpaceUIColors::SCANNER_GRID),
-                    ScannerGrid,
-                ))
-                .with_children(|parent| {
-                    // Create 49 scanner tiles (7x7 grid)
-                    for y in 0..7 {
-                        for x in 0..7 {
+                        },))
+                        .with_children(|parent| {
+                            // Satellite icon
                             parent.spawn((
-                                Node {
-                                    width: Val::Percent(100.0),
-                                    height: Val::Percent(100.0),
-                                    border: UiRect::all(Val::Px(0.5)),
+                                ImageNode {
+                                    image: Handle::default(),
                                     ..default()
                                 },
-                                BackgroundColor(SpaceUIColors::UNEXPLORED_SPACE),
-                                BorderColor(SpaceUIColors::SCANNER_GRID),
-                                SectorTile {
-                                    grid_x: x - 3,
-                                    grid_y: y - 3,
+                                Node {
+                                    width: Val::Px(16.0),
+                                    height: Val::Px(16.0),
+                                    margin: UiRect::right(Val::Px(8.0)),
+                                    ..default()
                                 },
+                                SatelliteIcon,
                             ));
-                        }
-                    }
-                });
 
-                // Scanner Legend
-                parent.spawn((
-                    Text::new("VESSEL = EXPLORED = ANOMALY = STATION\nASTEROIDS = HOSTILE = NEBULA = UNKNOWN"),
-                    TextFont {
-                        font_size: FontSize::Small.to_pixels(),
-                        ..default()
-                    },
-                    TextColor(SpaceUIColors::SECONDARY_TEXT),
-                    RegularText,
-                ));
-            });
+                            // Title text
+                            parent.spawn((
+                                Text::new("LONG RANGE SCANNER"),
+                                TextFont {
+                                    font_size: FontSize::Medium.to_pixels(),
+                                    ..default()
+                                },
+                                TextColor(SpaceUIColors::ENERGY_COLOR),
+                                RegularText,
+                                Name::new("ScannerTitle"),
+                            ));
+                        });
 
-            // Right Panel - Ship Systems & Resources
-            parent.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    right: Val::Px(15.0),
-                    top: Val::Px(65.0),
-                    width: Val::Px(280.0),
-                    padding: UiRect::all(Val::Px(15.0)),
-                    flex_direction: FlexDirection::Column,
-                    ..default()
-                },
-                BackgroundColor(SpaceUIColors::PANEL_BACKGROUND),
-                Name::new("ShipSystemsPanel"),
-            ))
-            .with_children(|parent| {
-                // Systems header with gear icon
-                parent.spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::bottom(Val::Px(10.0)),
-                        ..default()
-                    },
-                ))
-                .with_children(|parent| {
+                    // Coordinates Display
                     parent.spawn((
-                        ImageNode {
-                            image: Handle::default(),
+                        Text::new("COORDINATES: [0, 0, 0] | SCANNING..."),
+                        TextFont {
+                            font_size: FontSize::Regular.to_pixels(),
                             ..default()
                         },
+                        TextColor(SpaceUIColors::SECONDARY_TEXT),
                         Node {
-                            width: Val::Px(16.0),
-                            height: Val::Px(16.0),
-                            margin: UiRect::right(Val::Px(8.0)),
+                            margin: UiRect::bottom(Val::Px(8.0)),
                             ..default()
                         },
-                        GearIcon,
+                        RegularText,
+                        SectorMapDisplay,
                     ));
 
+                    // Scanner Grid (7x7 for better detail)
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Px(210.0),
+                                height: Val::Px(210.0),
+                                display: Display::Grid,
+                                grid_template_columns: RepeatedGridTrack::flex(7, 1.0),
+                                grid_template_rows: RepeatedGridTrack::flex(7, 1.0),
+                                column_gap: Val::Px(1.0),
+                                row_gap: Val::Px(1.0),
+                                margin: UiRect::bottom(Val::Px(8.0)),
+                                border: UiRect::all(Val::Px(1.0)),
+                                ..default()
+                            },
+                            BorderColor(SpaceUIColors::SCANNER_GRID),
+                            ScannerGrid,
+                        ))
+                        .with_children(|parent| {
+                            // Create 49 scanner tiles (7x7 grid)
+                            for y in 0..7 {
+                                for x in 0..7 {
+                                    parent.spawn((
+                                        Node {
+                                            width: Val::Percent(100.0),
+                                            height: Val::Percent(100.0),
+                                            border: UiRect::all(Val::Px(0.5)),
+                                            ..default()
+                                        },
+                                        BackgroundColor(SpaceUIColors::UNEXPLORED_SPACE),
+                                        BorderColor(SpaceUIColors::SCANNER_GRID),
+                                        SectorTile {
+                                            grid_x: x - 3,
+                                            grid_y: y - 3,
+                                        },
+                                    ));
+                                }
+                            }
+                        });
+                });
+
+            // Right Panel - Ship Systems & Resources
+            parent
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        right: Val::Px(15.0),
+                        top: Val::Px(65.0),
+                        width: Val::Px(280.0),
+                        padding: UiRect::all(Val::Px(15.0)),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    Name::new("ShipSystemsPanel"),
+                ))
+                .with_children(|parent| {
+                    // Systems header with gear icon
+                    parent
+                        .spawn((Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            margin: UiRect::bottom(Val::Px(10.0)),
+                            ..default()
+                        },))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                ImageNode {
+                                    image: Handle::default(),
+                                    ..default()
+                                },
+                                Node {
+                                    width: Val::Px(16.0),
+                                    height: Val::Px(16.0),
+                                    margin: UiRect::right(Val::Px(8.0)),
+                                    ..default()
+                                },
+                                GearIcon,
+                            ));
+
+                            parent.spawn((
+                                Text::new("SHIP SYSTEMS STATUS"),
+                                TextFont {
+                                    font_size: FontSize::Medium.to_pixels(),
+                                    ..default()
+                                },
+                                TextColor(SpaceUIColors::ENERGY_COLOR),
+                                RegularText,
+                            ));
+                        });
+
+                    // Ship status text
                     parent.spawn((
-                        Text::new("SHIP SYSTEMS STATUS"),
+                        Text::new("SHIP SYSTEMS: INITIALIZING..."),
+                        TextFont {
+                            font_size: FontSize::Regular.to_pixels(),
+                            ..default()
+                        },
+                        TextColor(SpaceUIColors::SUCCESS_TEXT),
+                        RegularText,
+                        ShipStatusPanel,
+                    ));
+                });
+
+            // Game Log Panel - Bottom Left
+            parent
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(15.0),
+                        bottom: Val::Px(120.0),
+                        width: Val::Px(400.0),
+                        height: Val::Px(200.0),
+                        padding: UiRect::all(Val::Px(12.0)),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    GameLogPanel,
+                    Name::new("GameLogPanel"),
+                ))
+                .with_children(|parent| {
+                    // Log header
+                    parent.spawn((
+                        Text::new("MISSION LOG"),
                         TextFont {
                             font_size: FontSize::Medium.to_pixels(),
                             ..default()
                         },
                         TextColor(SpaceUIColors::ENERGY_COLOR),
                         RegularText,
+                        Node {
+                            margin: UiRect::bottom(Val::Px(8.0)),
+                            ..default()
+                        },
+                    ));
+
+                    // Scrollable log area
+                    parent.spawn((
+                        Node {
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(85.0),
+                            flex_direction: FlexDirection::Column,
+                            overflow: Overflow::clip_y(),
+                            justify_content: JustifyContent::FlexEnd,
+                            ..default()
+                        },
+                        GameLogScrollArea,
                     ));
                 });
-
-                // Ship status text
-                parent.spawn((
-                    Text::new("SHIP SYSTEMS: INITIALIZING..."),
-                    TextFont {
-                        font_size: FontSize::Regular.to_pixels(),
-                        ..default()
-                    },
-                    TextColor(SpaceUIColors::SUCCESS_TEXT),
-                    RegularText,
-                    ShipStatusPanel,
-                ));
-            });
-
-            // Bottom Panel - Mission Control & Commands
-            parent.spawn((
-                Text::new("WASD/ARROWS: Navigate | SPACE: Quantum Dice | B: Base Operations | Q: Mission Log | I: Cargo Bay | ESC: System Menu"),
-                TextFont {
-                    font_size: FontSize::Small.to_pixels(),
-                    ..default()
-                },
-                TextColor(SpaceUIColors::PRIMARY_TEXT),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(50.0),
-                    bottom: Val::Px(15.0),
-                    width: Val::Px(500.0),
-                    padding: UiRect::all(Val::Px(12.0)),
-                    justify_self: JustifySelf::Center,
-                    ..default()
-                },
-                BackgroundColor(SpaceUIColors::PANEL_BACKGROUND),
-                RegularText,
-                MissionControlPanel,
-            ));
         });
 
-    info!("✅ Space Command Interface initialized");
-}
-
-/// Create top HUD bar with ship status - inline version
-fn create_top_hud_bar() -> impl Bundle {
-    (
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Px(50.0),
-            position_type: PositionType::Absolute,
-            top: Val::Px(0.0),
-            padding: UiRect::all(Val::Px(10.0)),
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::SpaceBetween,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        BackgroundColor(SpaceUIColors::HUD_BACKGROUND),
-        Name::new("TopHUD"),
-    )
-}
-
-/// Create sector scanner - simplified inline version
-fn create_sector_scanner() -> impl Bundle {
-    (
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(15.0),
-            top: Val::Px(65.0),
-            width: Val::Px(320.0),
-            height: Val::Px(280.0),
-            padding: UiRect::all(Val::Px(15.0)),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        BackgroundColor(SpaceUIColors::SCANNER_BACKGROUND),
-        Name::new("SectorScanner"),
-    )
-}
-
-/// Create ship systems panel - simplified inline version
-fn create_ship_systems_panel() -> impl Bundle {
-    (
-        Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(15.0),
-            top: Val::Px(65.0),
-            width: Val::Px(280.0),
-            height: Val::Px(320.0),
-            padding: UiRect::all(Val::Px(15.0)),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        BackgroundColor(SpaceUIColors::PANEL_BACKGROUND),
-        Name::new("ShipSystems"),
-    )
-}
-
-/// Create mission control panel - simplified inline version
-fn create_mission_control_panel() -> impl Bundle {
-    (
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Percent(50.0),
-            bottom: Val::Px(15.0),
-            width: Val::Px(500.0),
-            height: Val::Px(80.0),
-            padding: UiRect::all(Val::Px(12.0)),
-            flex_direction: FlexDirection::Column,
-            justify_self: JustifySelf::Center,
-            ..default()
-        },
-        BackgroundColor(SpaceUIColors::PANEL_BACKGROUND),
-        Name::new("MissionControl"),
-    )
-}
-
-/// Create alert panel - simplified inline version
-fn create_alert_panel() -> impl Bundle {
-    (
-        Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(15.0),
-            bottom: Val::Px(120.0),
-            width: Val::Px(300.0),
-            height: Val::Px(60.0),
-            padding: UiRect::all(Val::Px(10.0)),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        BackgroundColor(SpaceUIColors::HUD_BACKGROUND),
-        Visibility::Hidden,
-        AlertPanel,
-        Name::new("AlertSystem"),
-    )
+    info!("Space Command Interface initialized");
 }
 
 /// Update all space UI elements
@@ -593,6 +493,101 @@ fn update_space_ui(
     // Update mission control commands (can be dynamic based on state)
     if let Ok(mut control_text) = control_query.single_mut() {
         **control_text = "WASD/ARROWS: Navigate Sectors | SPACE: Quantum Dice Roll | B: Base Operations | Q: Mission Database | I: Cargo Manifest | ESC: Command Menu".to_string();
+    }
+}
+
+/// Add a log message to the game log service
+pub fn add_game_log_message(
+    mut game_log: ResMut<GameLogService>,
+    message: String,
+    log_type: GameLogType,
+) {
+    game_log.log_message(message, log_type);
+}
+
+/// Update the game log display with new messages
+fn update_game_log_display(
+    mut commands: Commands,
+    game_log: Res<GameLogService>,
+    log_scroll_query: Query<Entity, With<GameLogScrollArea>>,
+    existing_entries: Query<Entity, With<GameLogEntry>>,
+    time: Res<Time>,
+    mut entry_query: Query<(&mut GameLogEntry, &mut TextColor)>,
+    mut needs_initial_update: Local<bool>,
+) {
+    let should_update = game_log.is_changed() || !*needs_initial_update;
+
+    if !should_update {
+        // Update fade timers for existing entries
+        for (mut entry, mut color) in entry_query.iter_mut() {
+            entry.fade_timer.tick(time.delta());
+
+            if entry.fade_timer.finished() {
+                // Start fading after 10 seconds
+                let fade_progress = (entry.timestamp.elapsed().as_secs_f32() - 10.0).max(0.0) / 5.0;
+                let alpha = (1.0 - fade_progress).max(0.3);
+
+                let base_color = get_log_type_color(&entry.log_type);
+                if let Color::Srgba(srgba) = base_color {
+                    color.0 = Color::srgba(srgba.red, srgba.green, srgba.blue, alpha);
+                } else {
+                    color.0 = Color::srgba(0.8, 0.8, 0.8, alpha);
+                }
+            }
+        }
+        return;
+    }
+
+    *needs_initial_update = true;
+
+    if let Ok(scroll_entity) = log_scroll_query.single() {
+        // Clear existing entries
+        for entity in existing_entries.iter() {
+            commands.entity(entity).despawn();
+        }
+
+        // Add recent messages (last 10)
+        let recent_messages = game_log.get_recent_messages(10);
+
+        commands.entity(scroll_entity).with_children(|parent| {
+            for message in recent_messages.iter() {
+                let color = get_log_type_color(&message.log_type);
+
+                parent.spawn((
+                    Text::new(&message.message),
+                    TextFont {
+                        font_size: 11.0,
+                        ..default()
+                    },
+                    TextColor(color),
+                    Node {
+                        margin: UiRect::bottom(Val::Px(3.0)),
+                        ..default()
+                    },
+                    GameLogEntry {
+                        timestamp: std::time::Instant::now(),
+                        log_type: message.log_type.clone(),
+                        fade_timer: Timer::from_seconds(10.0, TimerMode::Once),
+                    },
+                ));
+            }
+        });
+    }
+}
+
+/// Get the appropriate color for a log type
+fn get_log_type_color(log_type: &GameLogType) -> Color {
+    match log_type {
+        GameLogType::Movement => SpaceUIColors::PRIMARY_TEXT,
+        GameLogType::Combat => SpaceUIColors::CRITICAL_TEXT,
+        GameLogType::Discovery => SpaceUIColors::SUCCESS_TEXT,
+        GameLogType::Rest => SpaceUIColors::ENERGY_COLOR,
+        GameLogType::Resources => SpaceUIColors::RESOURCE_COLOR,
+        GameLogType::Event => SpaceUIColors::WARNING_TEXT,
+        GameLogType::System => SpaceUIColors::SECONDARY_TEXT,
+        GameLogType::Warning => SpaceUIColors::WARNING_TEXT,
+        GameLogType::Critical => SpaceUIColors::CRITICAL_TEXT,
+        GameLogType::Narrative => SpaceUIColors::PRIMARY_TEXT,
     }
 }
 
@@ -714,7 +709,9 @@ mod tests {
         for terrain in all_terrains {
             let color = get_space_object_signature(terrain);
             // Ensure no color is completely black (invalid)
-            assert!(color.red() > 0.0 || color.green() > 0.0 || color.blue() > 0.0);
+            if let Color::Srgba(srgba) = color {
+                assert!(srgba.red > 0.0 || srgba.green > 0.0 || srgba.blue > 0.0);
+            }
         }
     }
 }

@@ -412,7 +412,7 @@ impl MovementDiceResult {
 
 /// Categories of events based on dice roll results
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum EventCategory {
+pub enum EventCategory {
     CriticalFailure,
     Failure,
     Neutral,
