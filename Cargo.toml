@@ -81,16 +81,12 @@ wasm-bindgen-futures = "=0.4.50"
 [features]
 default = []
 
-# Optimizations for release builds
+# Optimizations for release builds - simplified for wasm-bindgen compatibility
 [profile.release]
-lto = "thin"
-codegen-units = 1
+lto = false
+codegen-units = 16
 panic = "abort"
-opt-level = "s"
-
-# WASM-specific optimizations
-[profile.release.package."*"]
-opt-level = 3
+opt-level = 2
 
 # Development profile for faster builds
 [profile.dev]

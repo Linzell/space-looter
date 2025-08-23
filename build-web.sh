@@ -58,6 +58,33 @@ if [ ! -f "pkg/space_looter.js" ]; then
     exit 1
 fi
 
+# Debug: Show wasm-bindgen version used in build
+echo -e "${BLUE}🔍 Debugging build information...${NC}"
+if command -v wasm-bindgen &> /dev/null; then
+    BINDGEN_VERSION=$(wasm-bindgen --version)
+    echo -e "${GREEN}✅ wasm-bindgen CLI version: ${BINDGEN_VERSION}${NC}"
+else
+    echo -e "${YELLOW}⚠️ wasm-bindgen CLI not found${NC}"
+fi
+
+# Show generated file info
+echo -e "${BLUE}📊 Generated files info:${NC}"
+echo "  JS file size: $(wc -c < pkg/space_looter.js) bytes"
+echo "  WASM file size: $(wc -c < pkg/space_looter_bg.wasm) bytes"
+echo "  JS file MD5: $(md5sum pkg/space_looter.js | cut -d' ' -f1)"
+echo "  WASM file MD5: $(md5sum pkg/space_looter_bg.wasm | cut -d' ' -f1)"
+
+# Check for wasm-bindgen generated functions
+echo -e "${BLUE}🔍 Checking for closure wrappers in JS...${NC}"
+if grep -q "__wbindgen_closure_wrapper" pkg/space_looter.js; then
+    WRAPPER_COUNT=$(grep -c "__wbindgen_closure_wrapper" pkg/space_looter.js)
+    echo -e "${GREEN}✅ Found ${WRAPPER_COUNT} closure wrappers in JS${NC}"
+    echo "  First few wrappers:"
+    grep "__wbindgen_closure_wrapper" pkg/space_looter.js | head -3 | sed 's/^/    /'
+else
+    echo -e "${RED}❌ No closure wrappers found in JS${NC}"
+fi
+
 # Create dist directory and copy files
 echo -e "${BLUE}📁 Creating dist directory and copying files...${NC}"
 mkdir -p dist

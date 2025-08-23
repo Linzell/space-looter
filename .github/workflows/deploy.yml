@@ -135,9 +135,10 @@ jobs:
           sed -i "s|await import('./space_looter\.js')|await import('./space_looter.js?v=${CACHE_BUST}')|g" index.html
           echo "✅ HTML updated to use URL parameter cache busting"
 
-          # Add build info to HTML for verification
+          # Add build info to HTML for verification and fix preload hint
           sed -i "s|</head>|  <meta name=\"build-hash\" content=\"${BUILD_HASH}\">\n  <meta name=\"build-number\" content=\"${BUILD_NUMBER}\">\n  <meta name=\"build-timestamp\" content=\"${TIMESTAMP}\">\n  <meta name=\"cache-bust\" content=\"${CACHE_BUST}\">\n</head>|" index.html
-          echo "✅ Build metadata added to HTML"
+          sed -i "s|href=\"./space_looter\.js\"|href=\"./space_looter.js?v=${CACHE_BUST}\"|g" index.html
+          echo "✅ Build metadata added to HTML and preload hint updated"
 
           cd ..
 
@@ -193,6 +194,7 @@ jobs:
           cp netlify-build.sh /tmp/deploy-files/ 2>/dev/null && echo "✅ netlify-build.sh stored" || echo "⚠️ netlify-build.sh not found"
           cp README.md /tmp/deploy-files/ 2>/dev/null && echo "✅ README.md stored" || echo "⚠️ README.md not found"
           cp .gitignore /tmp/deploy-files/ 2>/dev/null && echo "✅ .gitignore stored" || echo "⚠️ .gitignore not found"
+          cp Cargo.lock /tmp/deploy-files/ 2>/dev/null && echo "✅ Cargo.lock stored" || echo "⚠️ Cargo.lock not found"
 
           echo "📁 Storing .github directory to prevent CI breakage..."
           cp -r .github /tmp/deploy-files/ 2>/dev/null && echo "✅ .github directory stored" || echo "⚠️ .github directory not found"
