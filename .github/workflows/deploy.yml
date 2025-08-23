@@ -96,25 +96,45 @@ jobs:
 
       - name: Deploy to deploy branch
         run: |
-          cd temp-deploy
+          # Configure git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git init
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Clone the deploy branch (or create if it doesn't exist)
+          if git ls-remote --exit-code --heads origin deploy; then
+            echo "📥 Deploy branch exists, cloning it..."
+            git clone --single-branch --branch deploy https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git deploy-repo
+          else
+            echo "🆕 Deploy branch doesn't exist, creating it..."
+            git clone https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git deploy-repo
+            cd deploy-repo
+            git checkout --orphan deploy
+            git rm -rf . 2>/dev/null || true
+            cd ..
+          fi
 
+          # Clean the deploy branch and add new files
+          cd deploy-repo
+          rm -rf * .[!.]* 2>/dev/null || true
+
+          # Copy all files from temp-deploy
+          cp -r ../temp-deploy/* . 2>/dev/null || true
+          cp -r ../temp-deploy/.[!.]* . 2>/dev/null || true
+
+          # Commit changes
           git add .
-          git commit -m "Deploy ${{ github.ref_name }}
+          if git diff --staged --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy ${{ github.ref_name }}
 
-          - Built from commit: ${{ github.sha }}
-          - Build #${{ github.run_number }}
-          - Generated at: $(date -u)"
+            - Built from commit: ${{ github.sha }}
+            - Build #${{ github.run_number }}
+            - Generated at: $(date -u)"
 
-          # Add remote with authentication
-          git remote add origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
-
-          # Force push to deploy branch
-          git push --force origin HEAD:deploy
-          echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
+            git push origin deploy
+            echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
+          fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
