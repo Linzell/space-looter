@@ -100,42 +100,45 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Fetch all branches
+          # Fetch all branches to get deploy branch
           git fetch origin
 
-          # Try to checkout deploy branch, create if it doesn't exist
-          if git show-ref --verify --quiet refs/remotes/origin/deploy; then
-            echo "📥 Switching to existing deploy branch..."
-            git checkout -b deploy origin/deploy
+          # Check if deploy branch exists
+          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+            echo "📥 Deploy branch exists, checking it out..."
+            git checkout deploy
+
+            # Clean existing files
+            git rm -rf . 2>/dev/null || true
+            rm -rf * .[!.]* 2>/dev/null || true
           else
-            echo "🆕 Creating new deploy branch..."
+            echo "🆕 Creating new orphan deploy branch..."
             git checkout --orphan deploy
+            git rm -rf . 2>/dev/null || true
           fi
 
-          # Clean current directory
-          git rm -rf . 2>/dev/null || true
-          rm -rf * .[!.]* 2>/dev/null || true
-
-          # Copy all files from temp-deploy
+          # Copy files from temp-deploy to current directory
+          echo "📁 Copying deployment files..."
           cp -r temp-deploy/* . 2>/dev/null || true
           cp -r temp-deploy/.[!.]* . 2>/dev/null || true
 
-          # Stage all files
+          # Add all files
           git add .
 
-          # Only commit if there are changes
-          if ! git diff --staged --quiet; then
+          # Check if there are any changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            # Commit the changes
             git commit -m "Deploy ${{ github.ref_name }}
 
             - Built from commit: ${{ github.sha }}
             - Build #${{ github.run_number }}
             - Generated at: $(date -u)"
 
-            # Push changes
+            # Push to deploy branch
             git push origin deploy
             echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
-          else
-            echo "No changes to deploy"
           fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
