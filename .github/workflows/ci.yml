@@ -62,8 +62,7 @@ jobs:
             --out-dir pkg \
             --release \
             --no-typescript \
-            --no-opt \
-            -- --features web
+            --no-opt
 
       - name: Verify build artifacts
         run: |

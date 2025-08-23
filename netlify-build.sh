@@ -71,8 +71,7 @@ wasm-pack build \
     --out-dir pkg \
     --release \
     --no-typescript \
-    --no-opt \
-    -- --features web
+    --no-opt
 
 # Check if build was successful
 if [ ! -f "pkg/space_looter.js" ]; then
