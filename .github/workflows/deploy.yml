@@ -52,11 +52,30 @@ jobs:
 
       - name: Update deploy branch
         run: |
-          # Copy built files to deploy branch
-          cp -r dist/* deploy-branch/
+          cd deploy-branch
+
+          # Clean all existing files (but don't commit yet)
+          echo "🧹 Cleaning existing files from deploy branch..."
+          rm -rf * .[!.]* 2>/dev/null || true
+
+          # Copy built files from dist
+          echo "📁 Copying built files..."
+          cp -r ../dist/* .
+
+          # Copy Netlify configuration files
+          echo "⚙️ Copying configuration files..."
+          cp ../netlify.toml .
+          cp ../netlify-build.sh .
+
+          # Copy additional configuration files
+          cp ../README.md .
+          cp ../.gitignore .
+
+          # Make netlify build script executable
+          chmod +x netlify-build.sh
 
           # Create deployment info
-          cd deploy-branch
+          echo "📝 Creating deployment documentation..."
           echo "# Space Looter Deployment" > DEPLOYMENT.md
           echo "" >> DEPLOYMENT.md
           echo "**Version:** ${{ github.ref_name }}" >> DEPLOYMENT.md
@@ -64,10 +83,24 @@ jobs:
           echo "**Commit:** ${{ github.sha }}" >> DEPLOYMENT.md
           echo "**Build:** GitHub Actions #${{ github.run_number }}" >> DEPLOYMENT.md
           echo "" >> DEPLOYMENT.md
+          echo "## About This Branch" >> DEPLOYMENT.md
+          echo "" >> DEPLOYMENT.md
+          echo "This is the \`deploy\` branch containing pre-built files for Netlify deployment." >> DEPLOYMENT.md
+          echo "Files are automatically built and deployed by GitHub Actions." >> DEPLOYMENT.md
+          echo "" >> DEPLOYMENT.md
+          echo "### Key Files:" >> DEPLOYMENT.md
+          echo "- \`index.html\` - Game entry point" >> DEPLOYMENT.md
+          echo "- \`space_looter.js\` - Generated JavaScript" >> DEPLOYMENT.md
+          echo "- \`space_looter_bg.wasm\` - Game WebAssembly binary" >> DEPLOYMENT.md
+          echo "- \`netlify.toml\` - Netlify configuration" >> DEPLOYMENT.md
+          echo "- \`assets/\` - Game assets (audio, fonts, icons)" >> DEPLOYMENT.md
+          echo "" >> DEPLOYMENT.md
           echo "## Files" >> DEPLOYMENT.md
           echo "\`\`\`" >> DEPLOYMENT.md
           ls -la >> DEPLOYMENT.md
           echo "\`\`\`" >> DEPLOYMENT.md
+
+          echo "✅ Deploy branch updated with clean files"
 
       - name: Commit and push to deploy branch
         run: |
