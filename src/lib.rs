@@ -13,7 +13,9 @@ pub mod domain;
 pub mod infrastructure;
 pub mod presentation;
 
+use crate::domain::services::audio_service::AudioService;
 use crate::domain::services::game_log_service::{GameLogService, GameLogType};
+
 use bevy::prelude::*;
 use bevy::time::{Timer, TimerMode};
 
@@ -59,7 +61,16 @@ pub fn create_app() -> App {
         presentation::game_log_integration::GameLogIntegrationPlugin,
         presentation::map_renderer::MapRendererPlugin,
         presentation::rendering::RenderingPlugin,
+        presentation::audio_integration::AudioEventIntegrationPlugin,
+        presentation::game_event_logger::GameEventLoggerPlugin,
     ));
+
+    // Register audio events
+    app.add_event::<presentation::game_event_logger::MovementAttemptEvent>()
+        .add_event::<presentation::game_event_logger::RestCompletedEvent>()
+        .add_event::<presentation::game_event_logger::ResourceChangedEvent>()
+        .add_event::<presentation::game_event_logger::DiscoveryEvent>()
+        .add_event::<presentation::game_event_logger::GameSystemEvent>();
 
     // Add RPG-specific resources
     app.insert_resource(infrastructure::bevy::resources::PlayerResource::new())
@@ -104,6 +115,8 @@ pub fn create_app() -> App {
             // UI and presentation systems
             handle_window_resize_system,
             rpg_state_transition_system,
+            // Audio management
+            rpg_music_management_system,
         ),
     );
 
@@ -199,6 +212,7 @@ fn rpg_turn_management_system(
 }
 
 /// RPG tile-based exploration with dice roll events
+/// RPG exploration and movement system with dice mechanics
 fn rpg_exploration_system(
     mut player_resource: ResMut<infrastructure::bevy::resources::PlayerResource>,
     mut map_resource: ResMut<infrastructure::bevy::resources::MapResource>,
@@ -210,6 +224,8 @@ fn rpg_exploration_system(
     mut rest_timer: Local<Option<Timer>>,
     time: Res<Time>,
     mut game_log: ResMut<GameLogService>,
+    mut commands: Commands,
+    audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
 ) {
     if !player_resource.has_player() {
         return;
@@ -220,6 +236,12 @@ fn rpg_exploration_system(
         timer.tick(time.delta());
         if timer.just_finished() {
             info!("😴 Rest period complete, you can now move again");
+            // Play rest complete audio
+            if let Some(audio_assets) = &audio_assets {
+                if let Some(rest_handle) = &audio_assets.rest_complete {
+                    commands.spawn(AudioPlayer::new(rest_handle.clone()));
+                }
+            }
             *rest_timer = None;
         } else {
             // Still resting, block all movement
@@ -296,6 +318,13 @@ fn rpg_exploration_system(
                         game_stats.record_tile_explored();
                         info!("✅ Player moved to position: {:?}", target_position);
 
+                        // Play successful movement sound
+                        if let Some(audio_assets) = &audio_assets {
+                            if let Some(step_handle) = &audio_assets.movement_step {
+                                commands.spawn(AudioPlayer::new(step_handle.clone()));
+                            }
+                        }
+
                         // Handle triggered event
                         if let Some(event) = movement_result.triggered_event {
                             info!(
@@ -319,6 +348,8 @@ fn rpg_exploration_system(
                                 &mut player_resource,
                                 &mut game_stats,
                                 &mut game_log,
+                                &mut commands,
+                                audio_assets.as_ref(),
                             );
 
                             // Log event description
@@ -345,6 +376,14 @@ fn rpg_exploration_system(
                 }
                 Err(e) => {
                     warn!("❌ Movement failed: {}", e);
+
+                    // Play blocked movement audio
+                    if let Some(audio_assets) = &audio_assets {
+                        if let Some(ui_handle) = &audio_assets.ui_click {
+                            commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                        }
+                    }
+
                     match e {
                         domain::DomainError::InvalidMapCoordinates(..) => {
                             info!("🚫 Can only move to adjacent tiles!");
@@ -366,6 +405,13 @@ fn rpg_exploration_system(
                                 "Not enough movement points".to_string(),
                                 GameLogType::Warning,
                             );
+
+                            // Play exhausted audio for no movement points
+                            if let Some(audio_assets) = &audio_assets {
+                                if let Some(ui_handle) = &audio_assets.ui_click {
+                                    commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                                }
+                            }
 
                             // Check if player can't make any moves - trigger rest
                             if let Some(player) = player_resource.get_player() {
@@ -423,6 +469,16 @@ fn rpg_exploration_system(
                                                     "Dawn breaks after a night of rest".to_string(),
                                                     GameLogType::System,
                                                 );
+
+                                                // Play rest start audio
+                                                if let Some(audio_assets) = &audio_assets {
+                                                    if let Some(ui_handle) = &audio_assets.ui_click
+                                                    {
+                                                        commands.spawn(AudioPlayer::new(
+                                                            ui_handle.clone(),
+                                                        ));
+                                                    }
+                                                }
 
                                                 info!(
                                                     "🎲 Night Roll: {} - {}",
@@ -521,6 +577,16 @@ fn rpg_exploration_system(
                                                 info!(
                                                     "🏃 Emergency rest - movement points restored, resting for 4 seconds..."
                                                 );
+
+                                                // Play emergency rest audio
+                                                if let Some(audio_assets) = &audio_assets {
+                                                    if let Some(ui_handle) = &audio_assets.ui_click
+                                                    {
+                                                        commands.spawn(AudioPlayer::new(
+                                                            ui_handle.clone(),
+                                                        ));
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -566,6 +632,8 @@ fn process_movement_event(
     player_resource: &mut infrastructure::bevy::resources::PlayerResource,
     game_stats: &mut infrastructure::bevy::resources::GameStatsResource,
     game_log: &mut ResMut<GameLogService>,
+    commands: &mut Commands,
+    audio_assets: Option<&Res<presentation::audio_integration::AudioAssets>>,
 ) {
     use domain::entities::EventType;
     use domain::value_objects::resources::ResourceCollection;
@@ -617,6 +685,22 @@ fn process_movement_event(
                 player.add_resources(&resources);
                 info!("💰 Found {} metal!", amount);
                 game_stats.record_experience_gain(amount as u32);
+
+                // Play resource discovery audio
+                if let Some(audio_assets) = audio_assets {
+                    if let Some(resource_handle) = &audio_assets.resource_collect {
+                        commands.spawn(AudioPlayer::new(resource_handle.clone()));
+                    }
+                }
+
+                // Additional audio for rare finds
+                if final_roll >= 18 {
+                    if let Some(audio_assets) = audio_assets {
+                        if let Some(resource_handle) = &audio_assets.resource_collect {
+                            commands.spawn(AudioPlayer::new(resource_handle.clone()));
+                        }
+                    }
+                }
             }
         }
 
@@ -632,9 +716,21 @@ fn process_movement_event(
 
             if damage > 0 {
                 info!("⚔️ Combat! Took {} damage", damage);
+                // Play damage/combat audio
+                if let Some(audio_assets) = audio_assets {
+                    if let Some(ui_handle) = &audio_assets.ui_click {
+                        commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                    }
+                }
                 // TODO: Implement actual damage system
             } else {
                 info!("⚔️ Combat encounter successfully resolved!");
+                // Play victory audio
+                if let Some(audio_assets) = audio_assets {
+                    if let Some(ui_handle) = &audio_assets.ui_click {
+                        commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                    }
+                }
                 if movement_bonus > 0 {
                     if let Some(player) = player_resource.get_player_mut() {
                         player.add_movement_points(movement_bonus);
@@ -661,10 +757,23 @@ fn process_movement_event(
                     // Safely subtract movement points (won't go below 0)
                     player.subtract_movement_points(penalty);
                     info!("⚠️ Environmental hazard! Lost {} movement points!", penalty);
+
+                    // Play hazard audio
+                    if let Some(audio_assets) = audio_assets {
+                        if let Some(ui_handle) = &audio_assets.ui_click {
+                            commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                        }
+                    }
                 }
             } else if final_roll >= 13 {
                 info!("⚠️ Successfully navigated environmental hazard!");
                 game_stats.record_experience_gain(10);
+                // Play success audio
+                if let Some(audio_assets) = audio_assets {
+                    if let Some(ui_handle) = &audio_assets.ui_click {
+                        commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                    }
+                }
             }
         }
 
@@ -680,11 +789,24 @@ fn process_movement_event(
                 resources.set_amount(ResourceType::Data, data_amount);
                 if let Some(player) = player_resource.get_player_mut() {
                     player.add_resources(&resources);
-                    info!("🤝 Successful trade! Gained {} data", data_amount);
-                    game_stats.record_experience_gain(15);
+                    info!("💾 Successful trade! Gained {} data!", data_amount);
+                    game_stats.record_experience_gain(data_amount as u32 / 2);
+
+                    // Play successful trade audio
+                    if let Some(audio_assets) = audio_assets {
+                        if let Some(ui_handle) = &audio_assets.ui_click {
+                            commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                        }
+                    }
                 }
             } else {
-                info!("🤝 Trade opportunity, but couldn't reach an agreement");
+                info!("💼 Trade failed - no resources gained");
+                // Play trade failure audio
+                if let Some(audio_assets) = audio_assets {
+                    if let Some(ui_handle) = &audio_assets.ui_click {
+                        commands.spawn(AudioPlayer::new(ui_handle.clone()));
+                    }
+                }
             }
         }
 
@@ -749,6 +871,8 @@ fn process_movement_event(
 fn rpg_dice_mechanics_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut game_stats: ResMut<infrastructure::bevy::resources::GameStatsResource>,
+    mut commands: Commands,
+    audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
 ) {
     // Roll dice on space bar press
     if keyboard_input.just_pressed(KeyCode::Space) {
@@ -761,13 +885,25 @@ fn rpg_dice_mechanics_system(
             game_stats.record_dice_roll(&dice_roll, 10);
             let total = dice_roll.total();
 
+            // Trigger dice roll audio
+            info!("🎲 Playing dice roll audio for roll: {}", total);
+            if let Some(audio_assets) = &audio_assets {
+                if let Some(dice_handle) = &audio_assets.dice_roll {
+                    commands.spawn(AudioPlayer::new(dice_handle.clone()));
+                }
+            }
+
             match total {
-                18..=20 => {
+                20 => {
                     info!("🎲 Critical Success! ({})", total);
                     game_stats.record_experience_gain(50);
                 }
-                15..=17 => {
+                18..=19 => {
                     info!("🎲 Great Success! ({})", total);
+                    game_stats.record_experience_gain(25);
+                }
+                15..=17 => {
+                    info!("🎲 Good Success! ({})", total);
                     game_stats.record_experience_gain(25);
                 }
                 10..=14 => {
@@ -777,6 +913,12 @@ fn rpg_dice_mechanics_system(
                 6..=9 => {
                     info!("🎲 Partial Success ({})", total);
                     game_stats.record_experience_gain(5);
+                }
+                2..=5 => {
+                    info!("🎲 Failed Roll ({})", total);
+                }
+                1 => {
+                    info!("🎲 Critical Failure! ({})", total);
                 }
                 _ => {
                     info!("🎲 Failed Roll ({})", total);
@@ -832,6 +974,131 @@ fn rpg_state_transition_system(
             }
         }
         _ => {}
+    }
+}
+
+/// Music management system based on game state
+/// Component to mark background music entities for tracking and cleanup
+#[derive(Component)]
+struct BackgroundMusic;
+
+fn rpg_music_management_system(
+    current_state: Res<State<presentation::RpgAppState>>,
+    mut commands: Commands,
+    audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
+    mut previous_state: Local<Option<presentation::RpgAppState>>,
+    // Query to find and despawn existing background music
+    existing_music: Query<Entity, With<BackgroundMusic>>,
+) {
+    let Some(audio_assets) = audio_assets else {
+        return;
+    };
+
+    let current = current_state.get();
+
+    // Only change music when state actually changes
+    if Some(current.clone()) != *previous_state {
+        let existing_count = existing_music.iter().count();
+        info!(
+            "🎵 State changed from {:?} to {:?}, found {} existing music entities to stop",
+            *previous_state, current, existing_count
+        );
+
+        // Stop all existing background music
+        for entity in existing_music.iter() {
+            info!(
+                "🛑 Despawning existing background music entity: {:?}",
+                entity
+            );
+            commands.entity(entity).despawn();
+        }
+
+        if existing_count > 0 {
+            info!("✅ Stopped {} background music tracks", existing_count);
+        }
+
+        // Start new music based on current state
+        match current {
+            presentation::RpgAppState::MainMenu => {
+                info!("🎵 Starting menu music (menu_theme.ogg)");
+                if let Some(menu_handle) = &audio_assets.menu_theme {
+                    let entity = commands
+                        .spawn((
+                            AudioPlayer::new(menu_handle.clone()),
+                            PlaybackSettings::LOOP,
+                            BackgroundMusic,
+                        ))
+                        .id();
+                    info!("🎶 Menu music entity spawned: {:?}", entity);
+                } else {
+                    warn!("❌ Menu music asset not loaded!");
+                }
+            }
+            presentation::RpgAppState::Exploration => {
+                info!("🎵 Starting exploration music (ambient_space.ogg)");
+                if let Some(ambient_handle) = &audio_assets.ambient_space {
+                    let entity = commands
+                        .spawn((
+                            AudioPlayer::new(ambient_handle.clone()),
+                            PlaybackSettings::LOOP,
+                            BackgroundMusic,
+                        ))
+                        .id();
+                    info!("🌌 Exploration music entity spawned: {:?}", entity);
+                } else {
+                    warn!("❌ Exploration music asset not loaded!");
+                }
+            }
+            presentation::RpgAppState::Combat => {
+                info!("🎵 Starting combat music (ambient_space.ogg)");
+                if let Some(ambient_handle) = &audio_assets.ambient_space {
+                    let entity = commands
+                        .spawn((
+                            AudioPlayer::new(ambient_handle.clone()),
+                            PlaybackSettings::LOOP,
+                            BackgroundMusic,
+                        ))
+                        .id();
+                    info!("⚔️ Combat music entity spawned: {:?}", entity);
+                } else {
+                    warn!("❌ Combat music asset not loaded!");
+                }
+            }
+            presentation::RpgAppState::BaseManagement => {
+                info!("🎵 Starting base music (menu_theme.ogg)");
+                if let Some(menu_handle) = &audio_assets.menu_theme {
+                    let entity = commands
+                        .spawn((
+                            AudioPlayer::new(menu_handle.clone()),
+                            PlaybackSettings::LOOP,
+                            BackgroundMusic,
+                        ))
+                        .id();
+                    info!("🏠 Base music entity spawned: {:?}", entity);
+                } else {
+                    warn!("❌ Base music asset not loaded!");
+                }
+            }
+            _ => {
+                info!(
+                    "🎵 Starting default exploration music for state: {:?} (ambient_space.ogg)",
+                    current
+                );
+                if let Some(ambient_handle) = &audio_assets.ambient_space {
+                    let entity = commands
+                        .spawn((
+                            AudioPlayer::new(ambient_handle.clone()),
+                            PlaybackSettings::LOOP,
+                            BackgroundMusic,
+                        ))
+                        .id();
+                    info!("🌟 Default music entity spawned: {:?}", entity);
+                } else {
+                    warn!("❌ Default music asset not loaded!");
+                }
+            }
+        }
+        *previous_state = Some(current.clone());
     }
 }
 

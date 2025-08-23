@@ -14,6 +14,7 @@
 //! - Stateless services (or explicitly managed state)
 //! - Clear single responsibility
 
+pub mod audio_service;
 pub mod collision;
 pub mod font_service;
 pub mod game_log_service;
@@ -22,6 +23,7 @@ pub mod spawning;
 pub mod tile_movement;
 
 // Re-export services for convenience
+pub use audio_service::{AudioService, AudioServiceError, DefaultAudioService};
 pub use collision::CollisionService;
 pub use font_service::{FontConfig, FontService, FontSize, FontType, FontWeight};
 pub use game_log_service::{GameLogMessage, GameLogService, GameLogType, LogPriority};

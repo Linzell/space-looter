@@ -5,10 +5,10 @@
 //! based on dice rolls, providing resources, encounters, or story elements.
 
 use crate::domain::{
-    entities::{Event, EventType, Player},
+    entities::Player,
     value_objects::{
         dice::{DiceModifier, DiceRoll, DiceType},
-        resources::{ResourceAmount, ResourceCollection},
+        resources::ResourceCollection,
         Position3D, ResourceType,
     },
     DomainError, DomainResult,
@@ -345,10 +345,10 @@ mod tests {
     fn test_rest_cycle_creation() {
         let service = RestingService::new();
         let mut player = Player::new(
-            EntityId::new(),
+            EntityId::new(1),
             "Test Player".to_string(),
             Position3D::new(0, 0, 0),
-            PlayerStats::default(),
+            PlayerStats::new(10, 10, 10, 10, 10, 10).unwrap(),
         )
         .unwrap();
 

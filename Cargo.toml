@@ -18,8 +18,8 @@ name = "space_looter"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# Core game engine with 3D support
-bevy = { version = "0.16.1", features = ["webgl2"] }
+# Core game engine with 3D support and audio
+bevy = { version = "0.16.1", features = ["webgl2", "vorbis", "wav"] }
 
 # RPG mechanics and data handling
 chrono = { version = "0.4", features = ["serde"] }

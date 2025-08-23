@@ -16,6 +16,7 @@
 //! - Translates between user actions and application commands
 //! - Manages presentation logic (not business logic)
 
+pub mod audio_integration;
 pub mod game_event_logger;
 pub mod game_log_integration;
 pub mod game_state;
@@ -26,6 +27,7 @@ pub mod map_renderer;
 pub mod rendering;
 
 // Re-export common presentation types
+pub use audio_integration::{AudioAssets, AudioEventIntegrationPlugin};
 pub use game_state::RpgAppState;
 pub use input::{GameAction, InputMapper};
 

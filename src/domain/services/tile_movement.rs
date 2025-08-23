@@ -75,13 +75,15 @@ impl TileMovementService {
             self.generate_movement_event(&dice_result, &target_position, map, player_level)?;
 
         // Create movement result
-        Ok(MovementResult {
+        let result = MovementResult {
             success: true,
             target_position,
             movement_cost,
-            dice_result,
+            dice_result: dice_result.clone(),
             triggered_event: event,
-        })
+        };
+
+        Ok(result)
     }
 
     /// Check if movement from current to target position is valid (adjacent tiles only)
