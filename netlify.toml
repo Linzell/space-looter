@@ -17,30 +17,36 @@ Cross-Origin-Opener-Policy = "same-origin"
 X-Frame-Options = "SAMEORIGIN"
 X-Content-Type-Options = "nosniff"
 
-# WASM MIME type with no caching
+# WASM MIME type with no caching and ETag control
 [[headers]]
 for = "*.wasm"
 [headers.values]
 Content-Type = "application/wasm"
-Cache-Control = "no-cache, no-store, must-revalidate"
+Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
 Pragma = "no-cache"
 Expires = "0"
+ETag = ""
+Last-Modified = ""
 
-# JavaScript files with no caching
+# JavaScript files with no caching and ETag control
 [[headers]]
 for = "*.js"
 [headers.values]
-Cache-Control = "no-cache, no-store, must-revalidate"
+Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
 Pragma = "no-cache"
 Expires = "0"
+ETag = ""
+Last-Modified = ""
 
-# HTML files with no caching
+# HTML files with no caching and ETag control
 [[headers]]
 for = "*.html"
 [headers.values]
-Cache-Control = "no-cache, no-store, must-revalidate"
+Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
 Pragma = "no-cache"
 Expires = "0"
+ETag = ""
+Last-Modified = ""
 
 # Production deployment from deploy branch
 [context.production]

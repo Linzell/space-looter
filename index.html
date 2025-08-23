@@ -446,10 +446,10 @@
                 console.log('📦 Loading WASM module...');
 
                 // Import the generated WASM module
-                const { default: init } = await import('./space_looter.js');
+                const { default: init } = await import('./space_looter.js?v=1755979469');
 
                 console.log('🔧 Initializing WASM...');
-                wasmModule = await init();
+                wasmModule = await init('./space_looter_bg.wasm?v=1755979469');
 
                 console.log('✅ WASM loaded successfully');
 
@@ -560,6 +560,6 @@
     </script>
 
     <!-- Preload hint for the WASM module -->
-    <link rel="modulepreload" href="./space_looter.js">
+    <link rel="modulepreload" href="./space_looter.js?v=1755979469">
 </body>
 </html>
