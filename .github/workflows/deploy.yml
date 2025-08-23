@@ -26,7 +26,7 @@ jobs:
       - name: Install wasm-pack via cargo
         run: |
           echo "📥 Installing wasm-pack via cargo..."
-          cargo install wasm-pack --version 0.13.1
+          cargo install wasm-pack --version 0.13.1 --force
           wasm-pack --version
           echo "✅ wasm-pack installed successfully"
 
