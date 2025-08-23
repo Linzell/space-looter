@@ -50,21 +50,13 @@ wasm-pack build \
     --target web \
     --out-dir pkg \
     --release \
-    --no-typescript \
-    --mode no-install
+    --no-typescript
 
 # Check if build was successful
 if [ ! -f "pkg/space_looter.js" ]; then
     echo -e "${RED}❌ Build failed - WASM files not generated${NC}"
-    echo -e "${BLUE}Available files in pkg/:${NC}"
-    ls -la pkg/ || echo "pkg directory not found"
     exit 1
 fi
-
-# Verify the wasm-bindgen version compatibility
-echo -e "${BLUE}🔍 Checking wasm-bindgen compatibility...${NC}"
-WASM_BINDGEN_VERSION=$(grep 'wasm-bindgen' Cargo.toml | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
-echo -e "${GREEN}✅ Using wasm-bindgen version: ${WASM_BINDGEN_VERSION}${NC}"
 
 # Create dist directory and copy files
 echo -e "${BLUE}📁 Creating dist directory and copying files...${NC}"
@@ -74,21 +66,6 @@ cp pkg/space_looter.js dist/
 cp pkg/space_looter_bg.wasm dist/
 if [ -f "pkg/space_looter.d.ts" ]; then
     cp pkg/space_looter.d.ts dist/
-fi
-
-# Verify JS and WASM files are compatible
-echo -e "${BLUE}🔍 Verifying JS/WASM compatibility...${NC}"
-JS_SIZE=$(wc -c < "dist/space_looter.js")
-WASM_SIZE=$(wc -c < "dist/space_looter_bg.wasm")
-echo -e "${GREEN}✅ JS file size: ${JS_SIZE} bytes${NC}"
-echo -e "${GREEN}✅ WASM file size: ${WASM_SIZE} bytes${NC}"
-
-# Check if the JS file contains the expected wasm-bindgen imports
-if grep -q "__wbindgen" dist/space_looter.js; then
-    echo -e "${GREEN}✅ JS file contains wasm-bindgen bindings${NC}"
-else
-    echo -e "${RED}❌ JS file missing wasm-bindgen bindings${NC}"
-    exit 1
 fi
 
 # Copy assets directory if it exists

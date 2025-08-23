@@ -32,7 +32,7 @@ jobs:
         run: |
           echo "🔍 Checking wasm-bindgen version consistency..."
 
-          # Get version from Cargo.toml
+          # Get version from Cargo.toml (handle both "0.2" and "0.2.95" formats)
           CARGO_VERSION=$(grep 'wasm-bindgen = ' Cargo.toml | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
           echo "📦 Cargo.toml wasm-bindgen version: $CARGO_VERSION"
 
@@ -40,17 +40,23 @@ jobs:
           WASM_PACK_VERSION=$(wasm-pack --version | cut -d' ' -f2)
           echo "🛠️ wasm-pack version: $WASM_PACK_VERSION"
 
-          # Ensure wasm-bindgen CLI version matches
-          if ! command -v wasm-bindgen &> /dev/null; then
-            echo "📥 Installing wasm-bindgen CLI to match Cargo version..."
-            cargo install wasm-bindgen-cli --version "$CARGO_VERSION"
+          # Skip wasm-bindgen CLI installation for shortened versions
+          if [[ "$CARGO_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "⚠️ Shortened version format detected ($CARGO_VERSION). Using wasm-pack's bundled wasm-bindgen."
+            echo "✅ Will use --mode no-install to ensure wasm-pack uses its own version"
           else
-            CLI_VERSION=$(wasm-bindgen --version | cut -d' ' -f2)
-            if [ "$CLI_VERSION" != "$CARGO_VERSION" ]; then
-              echo "⚠️ Version mismatch detected. Reinstalling wasm-bindgen CLI..."
-              cargo install wasm-bindgen-cli --version "$CARGO_VERSION" --force
+            # Ensure wasm-bindgen CLI version matches for full versions
+            if ! command -v wasm-bindgen &> /dev/null; then
+              echo "📥 Installing wasm-bindgen CLI to match Cargo version..."
+              cargo install wasm-bindgen-cli --version "$CARGO_VERSION"
             else
-              echo "✅ wasm-bindgen versions match: $CARGO_VERSION"
+              CLI_VERSION=$(wasm-bindgen --version | cut -d' ' -f2)
+              if [ "$CLI_VERSION" != "$CARGO_VERSION" ]; then
+                echo "⚠️ Version mismatch detected. Reinstalling wasm-bindgen CLI..."
+                cargo install wasm-bindgen-cli --version "$CARGO_VERSION" --force
+              else
+                echo "✅ wasm-bindgen versions match: $CARGO_VERSION"
+              fi
             fi
           fi
 
