@@ -17,6 +17,7 @@ use crate::domain::services::audio_service::AudioService;
 use crate::domain::services::game_log_service::{GameLogService, GameLogType};
 use crate::infrastructure::time::TimeService as InfraTimeService;
 
+use bevy::asset::{AssetMetaCheck, AssetPlugin};
 use bevy::prelude::*;
 use bevy::time::{Timer, TimerMode};
 
@@ -164,19 +165,26 @@ pub fn create_app() -> App {
         ..default()
     }));
 
-    // For WASM, we use the web-compatible version with proper canvas setup
+    // For WASM, we use the web-compatible version with proper canvas setup and disabled meta files
     #[cfg(target_arch = "wasm32")]
     {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Space Looter - 3D Isometric RPG".into(),
-                canvas: Some("#bevy".into()),
-                fit_canvas_to_parent: true,
-                prevent_default_event_handling: false,
-                ..default()
-            }),
-            ..default()
-        }));
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Space Looter - 3D Isometric RPG".into(),
+                        canvas: Some("#bevy".into()),
+                        fit_canvas_to_parent: true,
+                        prevent_default_event_handling: false,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    meta_check: AssetMetaCheck::Never,
+                    ..default()
+                }),
+        );
     }
 
     configure_rpg_app(&mut app);

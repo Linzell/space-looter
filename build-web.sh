@@ -157,6 +157,13 @@ if [ -d "assets" ]; then
     echo -e "${BLUE}🎵 Copying game assets (audio, fonts, icons)...${NC}"
     cp -r assets dist/
     echo -e "${GREEN}✅ Assets copied successfully${NC}"
+
+    # Verify audio assets were copied
+    if [ -d "dist/assets/audio" ]; then
+        echo -e "${GREEN}✅ Audio assets available for web build${NC}"
+    else
+        echo -e "${YELLOW}⚠️  No audio directory found in assets${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  No assets directory found - audio and graphics may not work${NC}"
 fi
