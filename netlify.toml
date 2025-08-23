@@ -1,28 +1,12 @@
 [build]
-# No build command - files are pre-built by GitHub Actions
-# This configuration assumes Netlify is connected to the 'deploy' branch
-# which contains the pre-built game files
-publish = "."
-command = ""
-# No ignore needed - always deploy from deploy branch
+# Build command to run the same script as local
+command = "./build-web.sh"
+# Publish the dist directory created by build script
+publish = "dist"
 
-# Skip build processing since files are already built
-[build.processing]
-skip_processing = true
-
-# Force rebuild on any file change
+# Environment variables
 [build.environment]
 NODE_ENV = "production"
-NETLIFY_PURGE_CACHE = "true"
-
-# Build optimization
-[build.processing.css]
-bundle = false
-minify = false
-
-[build.processing.js]
-bundle = false
-minify = false
 
 # Headers for WASM and security
 [[headers]]
@@ -32,9 +16,8 @@ Cross-Origin-Embedder-Policy = "require-corp"
 Cross-Origin-Opener-Policy = "same-origin"
 X-Frame-Options = "SAMEORIGIN"
 X-Content-Type-Options = "nosniff"
-Referrer-Policy = "strict-origin-when-cross-origin"
 
-# WASM MIME type - no caching to ensure new files are served
+# WASM MIME type with no caching
 [[headers]]
 for = "*.wasm"
 [headers.values]
@@ -42,63 +25,39 @@ Content-Type = "application/wasm"
 Cache-Control = "no-cache, no-store, must-revalidate"
 Pragma = "no-cache"
 Expires = "0"
-ETag = ""
 
-# JavaScript files caching - no caching to ensure new files are served
+# JavaScript files with no caching
 [[headers]]
 for = "*.js"
 [headers.values]
 Cache-Control = "no-cache, no-store, must-revalidate"
 Pragma = "no-cache"
 Expires = "0"
-ETag = ""
 
-# HTML files - aggressive no-cache headers
+# HTML files with no caching
 [[headers]]
 for = "*.html"
 [headers.values]
-Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
+Cache-Control = "no-cache, no-store, must-revalidate"
 Pragma = "no-cache"
 Expires = "0"
-Last-Modified = ""
-ETag = ""
 
-# Production deployment (from deploy branch)
+# Production deployment from deploy branch
 [context.production]
-publish = "."
-command = ""
-[context.production.environment]
-NODE_ENV = "production"
-NETLIFY_PURGE_CACHE = "true"
+command = "./build-web.sh"
+publish = "dist"
 
-# Branch deploys (only from deploy branch)
+# Deploy previews
 [context.deploy-preview]
-publish = "."
-command = ""
-[context.deploy-preview.environment]
-NODE_ENV = "preview"
-NETLIFY_PURGE_CACHE = "true"
+command = "./build-web.sh"
+publish = "dist"
 
-# Deploy previews for the deploy branch
+# Branch deploys
 [context.branch-deploy]
-publish = "."
-command = ""
-[context.branch-deploy.environment]
-NODE_ENV = "staging"
-NETLIFY_PURGE_CACHE = "true"
+command = "./build-web.sh"
+publish = "dist"
 
-# Force complete rebuild for any deploy - no plugins needed for static site
-
-# Add redirects to ensure proper MIME types
-[[redirects]]
-from = "/*.wasm"
-to = "/:splat.wasm"
-status = 200
-force = true
-[redirects.headers]
-Content-Type = "application/wasm"
-Cache-Control = "no-cache, no-store, must-revalidate"
-
+# SPA fallback for routing
 [[redirects]]
 from = "/*"
 to = "/index.html"
