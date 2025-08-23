@@ -62,6 +62,14 @@ jobs:
           cp README.md deploy-staging/
           cp .gitignore deploy-staging/
 
+          # Copy .github directory for GitHub integration
+          if [ -d ".github" ]; then
+            cp -r .github deploy-staging/
+            echo "✅ .github directory copied"
+          else
+            echo "⚠️  .github directory not found"
+          fi
+
           # Make netlify build script executable
           chmod +x deploy-staging/netlify-build.sh
 
@@ -101,6 +109,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Store the absolute path to deploy-staging
+          STAGING_DIR="$(pwd)/deploy-staging"
+          echo "📍 Staging directory: $STAGING_DIR"
+
+          # Verify staging directory exists
+          if [ ! -d "$STAGING_DIR" ]; then
+            echo "❌ deploy-staging directory not found at $STAGING_DIR"
+            ls -la
+            exit 1
+          fi
+
           # Fetch all branches to get deploy branch
           git fetch origin
 
@@ -109,25 +128,18 @@ jobs:
             echo "📥 Deploy branch exists, checking it out..."
             git checkout deploy
 
-            # Clean existing files
-            git rm -rf . 2>/dev/null || true
-            rm -rf * .[!.]* 2>/dev/null || true
+            # Clean existing files (preserve .git)
+            find . -maxdepth 1 -not -name '.git' -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
           else
             echo "🆕 Creating new orphan deploy branch..."
             git checkout --orphan deploy
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy files from deploy-staging to current directory
-          echo "📁 Copying deployment files..."
-          if [ -d "deploy-staging" ]; then
-            cp -r deploy-staging/* . 2>/dev/null || true
-            cp -r deploy-staging/.[!.]* . 2>/dev/null || true
-          else
-            echo "❌ deploy-staging directory not found"
-            ls -la
-            exit 1
-          fi
+          # Copy files from staging directory to current directory
+          echo "📁 Copying deployment files from $STAGING_DIR..."
+          cp -r "$STAGING_DIR"/* . 2>/dev/null || true
+          cp -r "$STAGING_DIR"/.[!.]* . 2>/dev/null || true
 
           # Add all files
           git add .
