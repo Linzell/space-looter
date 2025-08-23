@@ -34,6 +34,33 @@ jobs:
           chmod +x build-web.sh
           ./build-web.sh
 
+      - name: Verify build output
+        run: |
+          echo "🔍 Verifying build output..."
+          echo "Contents of dist directory:"
+          ls -la dist/
+          echo ""
+
+          # Check for critical files
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ ERROR: index.html missing from build"
+            exit 1
+          fi
+
+          if [ ! -f "dist/space_looter.js" ]; then
+            echo "❌ ERROR: space_looter.js missing from build"
+            exit 1
+          fi
+
+          if [ ! -f "dist/space_looter_bg.wasm" ]; then
+            echo "❌ ERROR: space_looter_bg.wasm missing from build"
+            echo "Build may have failed. Checking pkg directory:"
+            ls -la pkg/ || echo "pkg directory not found"
+            exit 1
+          fi
+
+          echo "✅ All critical files present in build"
+
       - name: Add version info and show statistics
         run: |
           echo "📁 Adding version info to HTML..."
@@ -62,13 +89,8 @@ jobs:
           cp README.md deploy-staging/
           cp .gitignore deploy-staging/
 
-          # Copy .github directory for GitHub integration
-          if [ -d ".github" ]; then
-            cp -r .github deploy-staging/
-            echo "✅ .github directory copied"
-          else
-            echo "⚠️  .github directory not found"
-          fi
+          # Skip .github directory to avoid interfering with running workflow
+          echo "⚠️  Skipping .github directory to avoid workflow interference"
 
           # Make netlify build script executable
           chmod +x deploy-staging/netlify-build.sh
@@ -105,11 +127,7 @@ jobs:
 
       - name: Deploy to deploy branch
         run: |
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Store the absolute path to deploy-staging
+          # Store the absolute path to deploy-staging BEFORE any git operations
           STAGING_DIR="$(pwd)/deploy-staging"
           echo "📍 Staging directory: $STAGING_DIR"
 
@@ -119,6 +137,10 @@ jobs:
             ls -la
             exit 1
           fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # Fetch all branches to get deploy branch
           git fetch origin
@@ -141,6 +163,19 @@ jobs:
           cp -r "$STAGING_DIR"/* . 2>/dev/null || true
           cp -r "$STAGING_DIR"/.[!.]* . 2>/dev/null || true
 
+          # Debug: Show what files are actually in the deploy branch
+          echo "🔍 Files in deploy branch after copy:"
+          ls -la
+          echo ""
+          echo "🔍 Checking for critical files:"
+          echo "  index.html: $([ -f index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter.js: $([ -f space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter_bg.wasm: $([ -f space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          if [ -f space_looter_bg.wasm ]; then
+            echo "  WASM file size: $(du -h space_looter_bg.wasm | cut -f1)"
+          fi
+
           # Add all files
           git add .
 
@@ -148,6 +183,10 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to deploy"
           else
+            # Show what's being committed
+            echo "🔍 Files being committed:"
+            git diff --cached --name-only
+
             # Commit the changes
             git commit -m "Deploy ${{ github.ref_name }}
 
@@ -158,6 +197,10 @@ jobs:
             # Push to deploy branch
             git push origin deploy
             echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
+
+            # Final verification
+            echo "🔍 Final deploy branch status:"
+            git ls-tree --name-only HEAD
           fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
