@@ -1,6 +1,10 @@
 [build]
 # No build command - files are pre-built by GitHub Actions
+# This configuration assumes Netlify is connected to the 'deploy' branch
+# which contains the pre-built game files
 publish = "."
+command = ""
+# No ignore needed - always deploy from deploy branch
 
 # Skip build processing since files are already built
 [build.processing]
@@ -35,12 +39,24 @@ for = "*.html"
 [headers.values]
 Cache-Control = "public, max-age=0, must-revalidate"
 
-# Build settings for different contexts
+# Production deployment (from deploy branch)
+[context.production]
+publish = "."
+command = ""
+
+# Branch deploys (only from deploy branch)
+[context.deploy-preview]
+publish = "."
+command = ""
+
+# Deploy previews for the deploy branch
+[context.branch-deploy]
+publish = "."
+command = ""
+
+# Environment variables for different contexts
 [context.production.environment]
-RUST_LOG = "error"
+NODE_ENV = "production"
 
 [context.deploy-preview.environment]
-RUST_LOG = "warn"
-
-[context.branch-deploy.environment]
-RUST_LOG = "debug"
+NODE_ENV = "preview"

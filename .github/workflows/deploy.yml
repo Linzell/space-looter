@@ -31,22 +31,12 @@ jobs:
       - name: Build WASM package
         run: |
           echo "🚀 Building Space Looter for tag: ${{ github.ref_name }}"
-          wasm-pack build \
-            --target web \
-            --out-dir pkg \
-            --release \
-            --no-typescript \
-            --no-opt
+          chmod +x build-web.sh
+          ./build-web.sh
 
-      - name: Create distribution
+      - name: Add version info and show statistics
         run: |
-          echo "📁 Creating distribution files..."
-          mkdir -p dist
-          cp web/index.html dist/
-          cp pkg/space_looter.js dist/
-          cp pkg/space_looter_bg.wasm dist/
-
-          # Add version info to index.html
+          echo "📁 Adding version info to HTML..."
           sed -i "s|<title>Space Looter</title>|<title>Space Looter ${{ github.ref_name }}</title>|g" dist/index.html
 
           echo "📊 Build statistics:"
