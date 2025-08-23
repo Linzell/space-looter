@@ -196,12 +196,115 @@
         .controls-toggle:hover {
             background: rgba(0, 96, 221, 0.9);
         }
+
+        /* Audio Authorization Modal */
+        .audio-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: white;
+            text-align: center;
+            padding: 40px;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+            opacity: 1;
+        }
+
+        .audio-modal-content {
+            max-width: 500px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #0080ff;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 128, 255, 0.2);
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .audio-modal h2 {
+            color: #0080ff;
+            margin-top: 0;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .audio-modal p {
+            color: #ccc;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .audio-modal-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .audio-modal-btn {
+            background: linear-gradient(135deg, #0080ff 0%, #0060dd 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .audio-modal-btn:hover {
+            background: linear-gradient(135deg, #0060dd 0%, #004bb5 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 128, 255, 0.3);
+        }
+
+        .audio-modal-btn:active {
+            transform: translateY(0);
+        }
+
+        .audio-modal-btn.secondary {
+            background: linear-gradient(135deg, #666 0%, #444 100%);
+        }
+
+        .audio-modal-btn.secondary:hover {
+            background: linear-gradient(135deg, #555 0%, #333 100%);
+        }
+
+        .audio-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
+        <!-- Audio Authorization Modal -->
+        <div id="audio-modal" class="audio-modal">
+            <div class="audio-modal-content">
+                <div class="audio-icon">🎵</div>
+                <h2>Audio Permission Required</h2>
+                <p>Space Looter includes music and sound effects to enhance your gaming experience.</p>
+                <p>Your browser requires permission to play audio. Click "Enable Audio" to allow sound, or "Continue Silent" to play without audio.</p>
+                <div class="audio-modal-buttons">
+                    <button id="enable-audio-btn" class="audio-modal-btn">🔊 Enable Audio</button>
+                    <button id="disable-audio-btn" class="audio-modal-btn secondary">🔇 Continue Silent</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Loading screen -->
-        <div id="loading" class="loading">
+        <div id="loading" class="loading hidden">
             <div class="loading-spinner"></div>
             <h2>Loading Space Looter...</h2>
             <p>Preparing your space adventure</p>
@@ -235,6 +338,71 @@
         let wasmModule;
         let audioEnabled = true;
         let musicPlaying = true;
+        let audioContext;
+        let gameInitialized = false;
+
+        // Initialize AudioContext to handle browser autoplay policies
+        function initializeAudioContext() {
+            try {
+                // Create AudioContext with user gesture
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                // Resume if suspended (required for some browsers)
+                if (audioContext.state === 'suspended') {
+                    return audioContext.resume();
+                }
+
+                console.log('✅ AudioContext initialized successfully');
+                return Promise.resolve();
+            } catch (error) {
+                console.warn('⚠️ AudioContext initialization failed:', error);
+                return Promise.resolve(); // Continue without audio
+            }
+        }
+
+        // Handle audio modal interactions
+        document.getElementById('enable-audio-btn').addEventListener('click', async () => {
+            console.log('🎵 User enabled audio');
+
+            // Initialize AudioContext with user gesture
+            await initializeAudioContext();
+
+            audioEnabled = true;
+            hideAudioModal();
+            startGameLoading();
+        });
+
+        document.getElementById('disable-audio-btn').addEventListener('click', () => {
+            console.log('🔇 User chose to continue without audio');
+
+            audioEnabled = false;
+            hideAudioModal();
+            startGameLoading();
+        });
+
+        function hideAudioModal() {
+            const modal = document.getElementById('audio-modal');
+            const content = modal.querySelector('.audio-modal-content');
+
+            // Animate modal out
+            modal.style.opacity = '0';
+            content.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function startGameLoading() {
+            if (!gameInitialized) {
+                gameInitialized = true;
+                document.getElementById('loading').classList.remove('hidden');
+                // Small delay to ensure smooth transition
+                setTimeout(() => {
+                    loadGame();
+                }, 100);
+            }
+        }
 
         // Music play functionality
         document.getElementById('music-play').addEventListener('click', () => {
@@ -446,10 +614,10 @@
                 console.log('📦 Loading WASM module...');
 
                 // Import the generated WASM module
-                const { default: init } = await import('./space_looter.js?v=1755979469');
+                const { default: init } = await import('./space_looter.js?v=1755986261');
 
                 console.log('🔧 Initializing WASM...');
-                wasmModule = await init('./space_looter_bg.wasm?v=1755979469');
+                wasmModule = await init('./space_looter_bg.wasm?v=1755986261');
 
                 console.log('✅ WASM loaded successfully');
 
@@ -521,11 +689,15 @@
             }
         });
 
-        // Start loading when page is ready
+        // Show audio modal when page is ready (don't auto-load game)
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadGame);
+            document.addEventListener('DOMContentLoaded', () => {
+                // Audio modal is shown by default, no need to do anything
+                console.log('🎮 Space Looter ready - waiting for audio permission');
+            });
         } else {
-            loadGame();
+            // Audio modal is shown by default, no need to do anything
+            console.log('🎮 Space Looter ready - waiting for audio permission');
         }
 
         // Global error handler for unhandled errors
@@ -560,6 +732,6 @@
     </script>
 
     <!-- Preload hint for the WASM module -->
-    <link rel="modulepreload" href="./space_looter.js?v=1755979469">
+    <link rel="modulepreload" href="./space_looter.js?v=1755986261">
 </body>
 </html>
