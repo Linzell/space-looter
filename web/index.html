@@ -316,14 +316,6 @@
             }
         });
 
-        // Controls toggle functionality
-        document.getElementById('controls-toggle').addEventListener('click', () => {
-            const controls = document.getElementById('controls');
-            if (controls) {
-                controls.classList.toggle('hidden-controls');
-            }
-        });
-
         // Auto-hide controls after 3 seconds of game interaction
         let controlsTimeout;
         function resetControlsTimeout() {
