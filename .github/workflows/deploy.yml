@@ -52,10 +52,10 @@ jobs:
 
       - name: Update deploy branch
         run: |
+          echo "🧹 Cleaning and updating deploy branch..."
           cd deploy-branch
 
           # Clean all existing files (but don't commit yet)
-          echo "🧹 Cleaning existing files from deploy branch..."
           rm -rf * .[!.]* 2>/dev/null || true
 
           # Copy built files from dist
@@ -105,10 +105,27 @@ jobs:
       - name: Commit and push to deploy branch
         run: |
           cd deploy-branch
+
+          # Debug: Show current state
+          echo "📊 Current directory: $(pwd)"
+          echo "📊 Git status before:"
+          git status
+          echo "📊 Git branches:"
+          git branch -a
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Ensure we're on the deploy branch
+          echo "📊 Checking out deploy branch..."
+          git checkout deploy || git checkout -b deploy
+
+          echo "📊 Current branch: $(git branch --show-current)"
+
           git add .
+
+          echo "📊 Git status after add:"
+          git status
 
           if git diff --staged --quiet; then
             echo "No changes to deploy"
