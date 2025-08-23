@@ -94,6 +94,24 @@ jobs:
 
           echo "✅ All source files verified"
 
+          # Create a temporary directory to store files before branch switch
+          echo "📦 Creating temporary storage for deployment files..."
+          mkdir -p /tmp/deploy-files
+
+          # Copy all files we need to the temporary directory
+          echo "📁 Storing build files..."
+          cp -r dist/* /tmp/deploy-files/
+          echo "✅ Build files stored"
+
+          echo "📁 Storing config files..."
+          cp netlify.toml /tmp/deploy-files/ 2>/dev/null && echo "✅ netlify.toml stored" || echo "⚠️ netlify.toml not found"
+          cp netlify-build.sh /tmp/deploy-files/ 2>/dev/null && echo "✅ netlify-build.sh stored" || echo "⚠️ netlify-build.sh not found"
+          cp README.md /tmp/deploy-files/ 2>/dev/null && echo "✅ README.md stored" || echo "⚠️ README.md not found"
+          cp .gitignore /tmp/deploy-files/ 2>/dev/null && echo "✅ .gitignore stored" || echo "⚠️ .gitignore not found"
+
+          echo "📦 Files stored in temporary directory:"
+          ls -la /tmp/deploy-files/
+
       - name: Deploy to deploy branch
         run: |
           # Configure git
@@ -116,25 +134,17 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Store reference to original working directory
-          ORIGINAL_DIR="${GITHUB_WORKSPACE}"
-          echo "📍 Original directory: $ORIGINAL_DIR"
+          # Copy files from temporary storage to deploy branch
+          echo "📁 Copying deployment files from temporary storage..."
 
-          # Copy files directly from dist and root
-          echo "📁 Copying deployment files directly..."
+          echo "🔍 Verifying temporary storage contents:"
+          ls -la /tmp/deploy-files/
 
-          # Copy built files from dist
-          echo "🔍 Copying built files from dist..."
-          cp -r "${ORIGINAL_DIR}/dist"/* . && echo "✅ Built files copied" || { echo "❌ Failed to copy from dist"; exit 1; }
+          # Copy all files from temporary storage
+          echo "📦 Copying files..."
+          cp -r /tmp/deploy-files/* . && echo "✅ All files copied" || { echo "❌ Failed to copy files"; exit 1; }
 
-          # Copy configuration files from root
-          echo "🔍 Copying configuration files..."
-          cp "${ORIGINAL_DIR}/netlify.toml" . && echo "✅ netlify.toml copied" || echo "❌ netlify.toml failed"
-          cp "${ORIGINAL_DIR}/netlify-build.sh" . && echo "✅ netlify-build.sh copied" || echo "❌ netlify-build.sh failed"
-          cp "${ORIGINAL_DIR}/README.md" . && echo "✅ README.md copied" || echo "❌ README.md failed"
-          cp "${ORIGINAL_DIR}/.gitignore" . && echo "✅ .gitignore copied" || echo "❌ .gitignore failed"
-
-          # Make netlify build script executable
+          # Make netlify build script executable if it exists
           chmod +x netlify-build.sh 2>/dev/null || echo "⚠️ netlify-build.sh not found or already executable"
 
           # Create deployment info
