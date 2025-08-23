@@ -97,43 +97,45 @@ jobs:
       - name: Deploy to deploy branch
         run: |
           # Configure git
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Clone the deploy branch (or create if it doesn't exist)
-          if git ls-remote --exit-code --heads origin deploy; then
-            echo "📥 Deploy branch exists, cloning it..."
-            git clone --single-branch --branch deploy https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git deploy-repo
+          # Fetch all branches
+          git fetch origin
+
+          # Try to checkout deploy branch, create if it doesn't exist
+          if git show-ref --verify --quiet refs/remotes/origin/deploy; then
+            echo "📥 Switching to existing deploy branch..."
+            git checkout -b deploy origin/deploy
           else
-            echo "🆕 Deploy branch doesn't exist, creating it..."
-            git clone https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git deploy-repo
-            cd deploy-repo
+            echo "🆕 Creating new deploy branch..."
             git checkout --orphan deploy
-            git rm -rf . 2>/dev/null || true
-            cd ..
           fi
 
-          # Clean the deploy branch and add new files
-          cd deploy-repo
+          # Clean current directory
+          git rm -rf . 2>/dev/null || true
           rm -rf * .[!.]* 2>/dev/null || true
 
           # Copy all files from temp-deploy
-          cp -r ../temp-deploy/* . 2>/dev/null || true
-          cp -r ../temp-deploy/.[!.]* . 2>/dev/null || true
+          cp -r temp-deploy/* . 2>/dev/null || true
+          cp -r temp-deploy/.[!.]* . 2>/dev/null || true
 
-          # Commit changes
+          # Stage all files
           git add .
-          if git diff --staged --quiet; then
-            echo "No changes to deploy"
-          else
+
+          # Only commit if there are changes
+          if ! git diff --staged --quiet; then
             git commit -m "Deploy ${{ github.ref_name }}
 
             - Built from commit: ${{ github.sha }}
             - Build #${{ github.run_number }}
             - Generated at: $(date -u)"
 
+            # Push changes
             git push origin deploy
             echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
+          else
+            echo "No changes to deploy"
           fi
         env:
           GITHUB_TOKEN: ${{ github.token }}
