@@ -28,6 +28,32 @@ jobs:
         with:
           version: "latest"
 
+      - name: Check wasm-bindgen versions
+        run: |
+          echo "🔍 Checking wasm-bindgen version consistency..."
+
+          # Get version from Cargo.toml
+          CARGO_VERSION=$(grep 'wasm-bindgen = ' Cargo.toml | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+          echo "📦 Cargo.toml wasm-bindgen version: $CARGO_VERSION"
+
+          # Check wasm-pack version
+          WASM_PACK_VERSION=$(wasm-pack --version | cut -d' ' -f2)
+          echo "🛠️ wasm-pack version: $WASM_PACK_VERSION"
+
+          # Ensure wasm-bindgen CLI version matches
+          if ! command -v wasm-bindgen &> /dev/null; then
+            echo "📥 Installing wasm-bindgen CLI to match Cargo version..."
+            cargo install wasm-bindgen-cli --version "$CARGO_VERSION"
+          else
+            CLI_VERSION=$(wasm-bindgen --version | cut -d' ' -f2)
+            if [ "$CLI_VERSION" != "$CARGO_VERSION" ]; then
+              echo "⚠️ Version mismatch detected. Reinstalling wasm-bindgen CLI..."
+              cargo install wasm-bindgen-cli --version "$CARGO_VERSION" --force
+            else
+              echo "✅ wasm-bindgen versions match: $CARGO_VERSION"
+            fi
+          fi
+
       - name: Build WASM package
         run: |
           echo "🚀 Building Space Looter for tag: ${{ github.ref_name }}"
@@ -72,32 +98,9 @@ jobs:
           echo "🔍 Final dist directory check before staging:"
           ls -la dist/
 
-          # Add cache busting to WASM and JS files
-          echo "🔄 Adding cache busting to files..."
-          TIMESTAMP=$(date +%s)
-          BUILD_HASH=$(echo "${{ github.sha }}" | cut -c1-8)
-          CACHE_BUST="${BUILD_HASH}-${TIMESTAMP}"
-
-          cd dist
-          # Rename files with cache busting
-          if [ -f space_looter_bg.wasm ]; then
-            mv space_looter_bg.wasm space_looter_bg.${CACHE_BUST}.wasm
-            echo "✅ WASM file renamed to space_looter_bg.${CACHE_BUST}.wasm"
-          fi
-
-          if [ -f space_looter.js ]; then
-            mv space_looter.js space_looter.${CACHE_BUST}.js
-            echo "✅ JS file renamed to space_looter.${CACHE_BUST}.js"
-          fi
-
-          # Update HTML file references
-          sed -i "s/space_looter\.js/space_looter.${CACHE_BUST}.js/g" index.html
-          sed -i "s/space_looter_bg\.wasm/space_looter_bg.${CACHE_BUST}.wasm/g" index.html
-          echo "✅ HTML references updated with cache busting"
-
-          cd ..
-
-          echo "🔍 Files after cache busting:"
+          # Temporarily disable cache busting to test WASM binding compatibility
+          echo "⚠️ Cache busting disabled for testing"
+          echo "🔍 Files without cache busting:"
           ls -la dist/
 
       - name: Prepare for deployment
@@ -111,11 +114,11 @@ jobs:
 
           echo "🔍 Critical files check:"
           echo "  index.html: $([ -f dist/index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  JS files: $(ls dist/space_looter*.js 2>/dev/null | wc -l) found"
-          echo "  WASM files: $(ls dist/space_looter_bg*.wasm 2>/dev/null | wc -l) found"
+          echo "  space_looter.js: $([ -f dist/space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter_bg.wasm: $([ -f dist/space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
 
-          if [ ! -f "dist/index.html" ] || [ $(ls dist/space_looter*.js 2>/dev/null | wc -l) -eq 0 ] || [ $(ls dist/space_looter_bg*.wasm 2>/dev/null | wc -l) -eq 0 ]; then
+          if [ ! -f "dist/index.html" ] || [ ! -f "dist/space_looter.js" ] || [ ! -f "dist/space_looter_bg.wasm" ]; then
             echo "❌ ERROR: Critical files missing from dist directory"
             exit 1
           fi
@@ -168,14 +171,13 @@ jobs:
           echo "🔍 Verifying temporary storage contents:"
           ls -la /tmp/deploy-files/
 
-          # Specific WASM file verification before copy (check for cache-busted files)
-          WASM_FILE=$(ls /tmp/deploy-files/space_looter_bg*.wasm 2>/dev/null | head -1)
-          if [ -n "$WASM_FILE" ]; then
-            echo "🔍 WASM file in temporary storage: $(basename "$WASM_FILE")"
-            echo "  Size: $(du -h "$WASM_FILE" | cut -f1)"
-            echo "  Size (bytes): $(wc -c < "$WASM_FILE")"
-            echo "  Modified: $(stat -c %y "$WASM_FILE")"
-            echo "  MD5: $(md5sum "$WASM_FILE" | cut -d' ' -f1)"
+          # Specific WASM file verification before copy
+          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
+            echo "🔍 WASM file in temporary storage:"
+            echo "  Size: $(du -h /tmp/deploy-files/space_looter_bg.wasm | cut -f1)"
+            echo "  Size (bytes): $(wc -c < /tmp/deploy-files/space_looter_bg.wasm)"
+            echo "  Modified: $(stat -c %y /tmp/deploy-files/space_looter_bg.wasm)"
+            echo "  MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
           else
             echo "❌ WASM file missing from temporary storage!"
             exit 1
@@ -220,50 +222,48 @@ jobs:
           echo ""
           echo "🔍 Checking for critical files:"
           echo "  index.html: $([ -f index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  JS files: $(ls space_looter*.js 2>/dev/null | wc -l) found"
-          echo "  WASM files: $(ls space_looter_bg*.wasm 2>/dev/null | wc -l) found"
+          echo "  space_looter.js: $([ -f space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter_bg.wasm: $([ -f space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
 
-          # Detailed WASM file verification (cache-busted)
-          DEPLOYED_WASM=$(ls space_looter_bg*.wasm 2>/dev/null | head -1)
-          if [ -n "$DEPLOYED_WASM" ]; then
-            echo "🔍 WASM file details: $(basename "$DEPLOYED_WASM")"
-            echo "  Size: $(du -h "$DEPLOYED_WASM" | cut -f1)"
-            echo "  Size (bytes): $(wc -c < "$DEPLOYED_WASM")"
-            echo "  Modified: $(stat -c %y "$DEPLOYED_WASM")"
-            echo "  MD5: $(md5sum "$DEPLOYED_WASM" | cut -d' ' -f1)"
+          # Detailed WASM file verification
+          if [ -f space_looter_bg.wasm ]; then
+            echo "🔍 WASM file details:"
+            echo "  Size: $(du -h space_looter_bg.wasm | cut -f1)"
+            echo "  Size (bytes): $(wc -c < space_looter_bg.wasm)"
+            echo "  Modified: $(stat -c %y space_looter_bg.wasm)"
+            echo "  MD5: $(md5sum space_looter_bg.wasm | cut -d' ' -f1)"
           else
             echo "❌ WASM file missing!"
           fi
 
           # Compare with temporary storage
-          TEMP_WASM=$(ls /tmp/deploy-files/space_looter_bg*.wasm 2>/dev/null | head -1)
-          if [ -n "$TEMP_WASM" ] && [ -n "$DEPLOYED_WASM" ]; then
+          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
             echo "🔍 Comparing WASM files:"
-            echo "  Temp file: $(basename "$TEMP_WASM")"
-            echo "  Deployed file: $(basename "$DEPLOYED_WASM")"
-            echo "  Temp file MD5: $(md5sum "$TEMP_WASM" | cut -d' ' -f1)"
-            echo "  Deployed file MD5: $(md5sum "$DEPLOYED_WASM" | cut -d' ' -f1)"
-            if cmp -s "$DEPLOYED_WASM" "$TEMP_WASM"; then
-              echo "  ✅ WASM files match"
-            else
-              echo "  ❌ WASM files differ!"
+            echo "  Temp file MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
+            if [ -f space_looter_bg.wasm ]; then
+              echo "  Deployed file MD5: $(md5sum space_looter_bg.wasm | cut -d' ' -f1)"
+              if cmp -s space_looter_bg.wasm /tmp/deploy-files/space_looter_bg.wasm; then
+                echo "  ✅ WASM files match"
+              else
+                echo "  ❌ WASM files differ!"
+              fi
             fi
           fi
 
           # Verify all critical files are present
-          if [ ! -f index.html ] || [ $(ls space_looter*.js 2>/dev/null | wc -l) -eq 0 ] || [ $(ls space_looter_bg*.wasm 2>/dev/null | wc -l) -eq 0 ]; then
+          if [ ! -f index.html ] || [ ! -f space_looter.js ] || [ ! -f space_looter_bg.wasm ]; then
             echo "❌ ERROR: Critical files missing after copy!"
             echo "Current directory contents:"
             ls -la
             exit 1
           fi
 
-          # Show final deployed files with their unique names
+          # Show final deployed files
           echo "🎯 Final deployed files:"
           echo "  HTML: $(ls index.html 2>/dev/null || echo "MISSING")"
-          echo "  JS: $(ls space_looter*.js 2>/dev/null || echo "MISSING")"
-          echo "  WASM: $(ls space_looter_bg*.wasm 2>/dev/null || echo "MISSING")"
+          echo "  JS: $(ls space_looter.js 2>/dev/null || echo "MISSING")"
+          echo "  WASM: $(ls space_looter_bg.wasm 2>/dev/null || echo "MISSING")"
           echo "  Assets: $([ -d assets ] && echo "✅ Directory exists" || echo "❌ Missing")"
 
           # Add all files
