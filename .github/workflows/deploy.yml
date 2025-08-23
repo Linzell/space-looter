@@ -104,9 +104,39 @@ jobs:
           echo "🔍 Final dist directory check before staging:"
           ls -la dist/
 
-          # Temporarily disable cache busting to test WASM binding compatibility
-          echo "⚠️ Cache busting disabled for testing"
-          echo "🔍 Files without cache busting:"
+          # Add aggressive cache busting to force new WASM deployment
+          echo "🔄 Adding cache busting with build info..."
+          TIMESTAMP=$(date +%s)
+          BUILD_HASH=$(echo "${{ github.sha }}" | cut -c1-8)
+          BUILD_NUMBER="${{ github.run_number }}"
+          CACHE_BUST="${BUILD_HASH}-${BUILD_NUMBER}-${TIMESTAMP}"
+
+          cd dist
+          echo "🎯 Cache bust identifier: ${CACHE_BUST}"
+
+          # Rename files with aggressive cache busting
+          if [ -f space_looter_bg.wasm ]; then
+            mv space_looter_bg.wasm space_looter_bg.${CACHE_BUST}.wasm
+            echo "✅ WASM file renamed to space_looter_bg.${CACHE_BUST}.wasm"
+          fi
+
+          if [ -f space_looter.js ]; then
+            mv space_looter.js space_looter.${CACHE_BUST}.js
+            echo "✅ JS file renamed to space_looter.${CACHE_BUST}.js"
+          fi
+
+          # Update HTML file references
+          sed -i "s/space_looter\.js/space_looter.${CACHE_BUST}.js/g" index.html
+          sed -i "s/space_looter_bg\.wasm/space_looter_bg.${CACHE_BUST}.wasm/g" index.html
+          echo "✅ HTML references updated with cache busting"
+
+          # Add build info to HTML for verification
+          sed -i "s|</head>|  <meta name=\"build-hash\" content=\"${BUILD_HASH}\">\n  <meta name=\"build-number\" content=\"${BUILD_NUMBER}\">\n  <meta name=\"build-timestamp\" content=\"${TIMESTAMP}\">\n</head>|" index.html
+          echo "✅ Build metadata added to HTML"
+
+          cd ..
+
+          echo "🔍 Files after aggressive cache busting:"
           ls -la dist/
 
       - name: Prepare for deployment
@@ -120,11 +150,11 @@ jobs:
 
           echo "🔍 Critical files check:"
           echo "  index.html: $([ -f dist/index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter.js: $([ -f dist/space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter_bg.wasm: $([ -f dist/space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  JS files: $(ls dist/space_looter*.js 2>/dev/null | wc -l) found"
+          echo "  WASM files: $(ls dist/space_looter_bg*.wasm 2>/dev/null | wc -l) found"
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
 
-          if [ ! -f "dist/index.html" ] || [ ! -f "dist/space_looter.js" ] || [ ! -f "dist/space_looter_bg.wasm" ]; then
+          if [ ! -f "dist/index.html" ] || [ $(ls dist/space_looter*.js 2>/dev/null | wc -l) -eq 0 ] || [ $(ls dist/space_looter_bg*.wasm 2>/dev/null | wc -l) -eq 0 ]; then
             echo "❌ ERROR: Critical files missing from dist directory"
             exit 1
           fi
@@ -146,51 +176,52 @@ jobs:
           cp README.md /tmp/deploy-files/ 2>/dev/null && echo "✅ README.md stored" || echo "⚠️ README.md not found"
           cp .gitignore /tmp/deploy-files/ 2>/dev/null && echo "✅ .gitignore stored" || echo "⚠️ .gitignore not found"
 
+          echo "📁 Storing .github directory to prevent CI breakage..."
+          cp -r .github /tmp/deploy-files/ 2>/dev/null && echo "✅ .github directory stored" || echo "⚠️ .github directory not found"
+
           echo "📦 Files stored in temporary directory:"
           ls -la /tmp/deploy-files/
 
       - name: Deploy to deploy branch
         run: |
-          # Configure git
+          # Check if deploy branch exists on remote
+          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+            echo "📥 Deploy branch exists, fetching it..."
+          else
+            echo "🆕 Deploy branch will be created as orphan..."
+          fi
+
+          # Create separate directory for deploy branch to avoid interfering with workflow
+          echo "📁 Creating separate deploy directory..."
+          mkdir -p /tmp/deploy-branch
+          cd /tmp/deploy-branch
+
+          # Initialize git in the separate directory
+          git init
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Fetch all branches to get deploy branch
-          git fetch origin
-
-          # Check if deploy branch exists
-          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
-            echo "📥 Deploy branch exists, checking it out..."
-            git checkout deploy
-
-            # Clean existing files (preserve .git)
-            find . -maxdepth 1 -not -name '.git' -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
-          else
-            echo "🆕 Creating new orphan deploy branch..."
-            git checkout --orphan deploy
-            git rm -rf . 2>/dev/null || true
-          fi
-
-          # Copy files from temporary storage to deploy branch
-          echo "📁 Copying deployment files from temporary storage..."
+          # Add remote
+          git remote add origin https://github.com/${{ github.repository }}.git
 
           echo "🔍 Verifying temporary storage contents:"
           ls -la /tmp/deploy-files/
 
-          # Specific WASM file verification before copy
-          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
-            echo "🔍 WASM file in temporary storage:"
-            echo "  Size: $(du -h /tmp/deploy-files/space_looter_bg.wasm | cut -f1)"
-            echo "  Size (bytes): $(wc -c < /tmp/deploy-files/space_looter_bg.wasm)"
-            echo "  Modified: $(stat -c %y /tmp/deploy-files/space_looter_bg.wasm)"
-            echo "  MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
+          # Specific WASM file verification before copy (cache-busted files)
+          WASM_FILE=$(ls /tmp/deploy-files/space_looter_bg*.wasm 2>/dev/null | head -1)
+          if [ -n "$WASM_FILE" ]; then
+            echo "🔍 WASM file in temporary storage: $(basename "$WASM_FILE")"
+            echo "  Size: $(du -h "$WASM_FILE" | cut -f1)"
+            echo "  Size (bytes): $(wc -c < "$WASM_FILE")"
+            echo "  Modified: $(stat -c %y "$WASM_FILE")"
+            echo "  MD5: $(md5sum "$WASM_FILE" | cut -d' ' -f1)"
           else
             echo "❌ WASM file missing from temporary storage!"
             exit 1
           fi
 
-          # Copy all files from temporary storage
-          echo "📦 Copying files..."
+          # Copy all files from temporary storage to deploy directory
+          echo "📦 Copying files to deploy directory..."
           cp -r /tmp/deploy-files/* . && echo "✅ All files copied" || { echo "❌ Failed to copy files"; exit 1; }
 
           # Make netlify build script executable if it exists
@@ -228,49 +259,57 @@ jobs:
           echo ""
           echo "🔍 Checking for critical files:"
           echo "  index.html: $([ -f index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter.js: $([ -f space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter_bg.wasm: $([ -f space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  JS files: $(ls space_looter*.js 2>/dev/null | wc -l) found"
+          echo "  WASM files: $(ls space_looter_bg*.wasm 2>/dev/null | wc -l) found"
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
 
-          # Detailed WASM file verification
-          if [ -f space_looter_bg.wasm ]; then
-            echo "🔍 WASM file details:"
-            echo "  Size: $(du -h space_looter_bg.wasm | cut -f1)"
-            echo "  Size (bytes): $(wc -c < space_looter_bg.wasm)"
-            echo "  Modified: $(stat -c %y space_looter_bg.wasm)"
-            echo "  MD5: $(md5sum space_looter_bg.wasm | cut -d' ' -f1)"
+          # Detailed WASM file verification (cache-busted)
+          DEPLOYED_WASM=$(ls space_looter_bg*.wasm 2>/dev/null | head -1)
+          if [ -n "$DEPLOYED_WASM" ]; then
+            echo "🔍 WASM file details: $(basename "$DEPLOYED_WASM")"
+            echo "  Size: $(du -h "$DEPLOYED_WASM" | cut -f1)"
+            echo "  Size (bytes): $(wc -c < "$DEPLOYED_WASM")"
+            echo "  Modified: $(stat -c %y "$DEPLOYED_WASM")"
+            echo "  MD5: $(md5sum "$DEPLOYED_WASM" | cut -d' ' -f1)"
           else
             echo "❌ WASM file missing!"
           fi
 
           # Compare with temporary storage
-          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
+          TEMP_WASM=$(ls /tmp/deploy-files/space_looter_bg*.wasm 2>/dev/null | head -1)
+          if [ -n "$TEMP_WASM" ] && [ -n "$DEPLOYED_WASM" ]; then
             echo "🔍 Comparing WASM files:"
-            echo "  Temp file MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
-            if [ -f space_looter_bg.wasm ]; then
-              echo "  Deployed file MD5: $(md5sum space_looter_bg.wasm | cut -d' ' -f1)"
-              if cmp -s space_looter_bg.wasm /tmp/deploy-files/space_looter_bg.wasm; then
-                echo "  ✅ WASM files match"
-              else
-                echo "  ❌ WASM files differ!"
-              fi
+            echo "  Temp file: $(basename "$TEMP_WASM")"
+            echo "  Deployed file: $(basename "$DEPLOYED_WASM")"
+            echo "  Temp file MD5: $(md5sum "$TEMP_WASM" | cut -d' ' -f1)"
+            echo "  Deployed file MD5: $(md5sum "$DEPLOYED_WASM" | cut -d' ' -f1)"
+            if cmp -s "$DEPLOYED_WASM" "$TEMP_WASM"; then
+              echo "  ✅ WASM files match"
+            else
+              echo "  ❌ WASM files differ!"
             fi
           fi
 
           # Verify all critical files are present
-          if [ ! -f index.html ] || [ ! -f space_looter.js ] || [ ! -f space_looter_bg.wasm ]; then
+          if [ ! -f index.html ] || [ $(ls space_looter*.js 2>/dev/null | wc -l) -eq 0 ] || [ $(ls space_looter_bg*.wasm 2>/dev/null | wc -l) -eq 0 ]; then
             echo "❌ ERROR: Critical files missing after copy!"
             echo "Current directory contents:"
             ls -la
             exit 1
           fi
 
-          # Show final deployed files
+          # Show final deployed files with cache-busted names
           echo "🎯 Final deployed files:"
           echo "  HTML: $(ls index.html 2>/dev/null || echo "MISSING")"
-          echo "  JS: $(ls space_looter.js 2>/dev/null || echo "MISSING")"
-          echo "  WASM: $(ls space_looter_bg.wasm 2>/dev/null || echo "MISSING")"
+          echo "  JS: $(ls space_looter*.js 2>/dev/null || echo "MISSING")"
+          echo "  WASM: $(ls space_looter_bg*.wasm 2>/dev/null || echo "MISSING")"
           echo "  Assets: $([ -d assets ] && echo "✅ Directory exists" || echo "❌ Missing")"
+
+          # Show build metadata for verification
+          echo "🏷️ Build metadata:"
+          echo "  Git hash: ${BUILD_HASH:-$(echo "${{ github.sha }}" | cut -c1-8)}"
+          echo "  Build number: ${BUILD_NUMBER:-${{ github.run_number }}}"
+          echo "  Cache bust ID: $(ls space_looter_bg*.wasm 2>/dev/null | sed 's/space_looter_bg\.\(.*\)\.wasm/\1/' | head -1)"
 
           # Add all files
           git add .
@@ -297,7 +336,40 @@ jobs:
             # Final verification
             echo "🔍 Final deploy branch status:"
             git ls-tree --name-only HEAD
+
+            # Check if deploy branch exists and handle accordingly
+            if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+              echo "📥 Fetching existing deploy branch..."
+              git fetch origin deploy
+              git checkout -B deploy origin/deploy
+            else
+              echo "🆕 Creating new orphan deploy branch..."
+              git checkout --orphan deploy
+            fi
+
+            # Add all deployment files
+            git add .urge and rebuild
+            echo "🔄 Triggering Netlify cache purge..."
+
+            # Create a cache-busting commit to force Netlify to rebuild
+            echo "cache-bust: $(date +%s)" > .netlify-cache-bust
+            git add .netlify-cache-bust
+            git commit -m "Force Netlify cache purge - Build #${{ github.run_number }}"
+            git push origin deploy
+
+            echo "✅ Cache purge commit pushed to force Netlify rebuild"
+            echo "🌐 Netlify will detect the new commit and redeploy automatically"
+            echo "⏳ Wait 2-3 minutes for Netlify to rebuild and purge CDN cache"
           fi
+
+          # Final verification from deploy directory
+          echo "🔍 Final verification from deploy directory:"
+          pwd
+          ls -la
+
+          # Return to original workspace to avoid workflow cleanup issues
+          cd "${GITHUB_WORKSPACE}"
+          echo "🏠 Returned to original workspace for cleanup"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -308,10 +380,19 @@ jobs:
           echo "**Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** deploy" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Build:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $(echo "${{ github.sha }}" | cut -c1-8)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Files deployed:" >> $GITHUB_STEP_SUMMARY
-          echo "- index.html" >> $GITHUB_STEP_SUMMARY
-          echo "- space_looter.js" >> $GITHUB_STEP_SUMMARY
-          echo "- space_looter_bg.wasm" >> $GITHUB_STEP_SUMMARY
+          echo "### Files deployed with cache busting:" >> $GITHUB_STEP_SUMMARY
+          echo "- index.html (with build metadata)" >> $GITHUB_STEP_SUMMARY
+          echo "- space_looter.*.js (cache-busted)" >> $GITHUB_STEP_SUMMARY
+          echo "- space_looter_bg.*.wasm (cache-busted)" >> $GITHUB_STEP_SUMMARY
+          echo "- .netlify-cache-bust (forces rebuild)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 **Netlify will auto-deploy from the 'deploy' branch**" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Netlify cache purge triggered - rebuilding now**" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ **Wait 2-3 minutes for CDN cache to clear**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Check HTML source for build metadata" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check dev tools for cache-busted filenames" >> $GITHUB_STEP_SUMMARY
+          echo "3. WASM file should be ~30MB" >> $GITHUB_STEP_SUMMARY
