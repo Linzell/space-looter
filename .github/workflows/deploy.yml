@@ -69,6 +69,9 @@ jobs:
           echo "📊 Build statistics:"
           du -h dist/*
 
+          echo "🔍 Final dist directory check before staging:"
+          ls -la dist/
+
       - name: Prepare deployment files
         run: |
           echo "🧹 Preparing deployment files..."
@@ -78,16 +81,19 @@ jobs:
 
           # Copy built files from dist
           echo "📁 Copying built files..."
+          echo "🔍 Source dist directory contents:"
+          ls -la dist/
           cp -r dist/* deploy-staging/
+          echo "✅ Built files copied to staging"
 
           # Copy Netlify configuration files
           echo "⚙️ Copying configuration files..."
-          cp netlify.toml deploy-staging/
-          cp netlify-build.sh deploy-staging/
+          cp netlify.toml deploy-staging/ && echo "✅ netlify.toml copied" || echo "❌ netlify.toml failed"
+          cp netlify-build.sh deploy-staging/ && echo "✅ netlify-build.sh copied" || echo "❌ netlify-build.sh failed"
 
           # Copy additional configuration files
-          cp README.md deploy-staging/
-          cp .gitignore deploy-staging/
+          cp README.md deploy-staging/ && echo "✅ README.md copied" || echo "❌ README.md failed"
+          cp .gitignore deploy-staging/ && echo "✅ .gitignore copied" || echo "❌ .gitignore failed"
 
           # Skip .github directory to avoid interfering with running workflow
           echo "⚠️  Skipping .github directory to avoid workflow interference"
@@ -125,6 +131,18 @@ jobs:
 
           echo "✅ Deploy files prepared in deploy-staging/"
 
+          # Debug: Show what was actually created in staging
+          echo "🔍 Contents of deploy-staging directory:"
+          ls -la deploy-staging/
+          echo ""
+          echo "🔍 Checking staging directory size:"
+          du -sh deploy-staging/
+          echo ""
+          echo "🔍 Critical files in staging:"
+          echo "  index.html: $([ -f deploy-staging/index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter.js: $([ -f deploy-staging/space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter_bg.wasm: $([ -f deploy-staging/space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+
       - name: Deploy to deploy branch
         run: |
           # Store the absolute path to deploy-staging BEFORE any git operations
@@ -160,8 +178,15 @@ jobs:
 
           # Copy files from staging directory to current directory
           echo "📁 Copying deployment files from $STAGING_DIR..."
-          cp -r "$STAGING_DIR"/* . 2>/dev/null || true
-          cp -r "$STAGING_DIR"/.[!.]* . 2>/dev/null || true
+          if [ "$(ls -A "$STAGING_DIR" 2>/dev/null)" ]; then
+            cp -r "$STAGING_DIR"/* . 2>/dev/null && echo "✅ Visible files copied" || echo "⚠️  No visible files to copy"
+            cp -r "$STAGING_DIR"/.[!.]* . 2>/dev/null && echo "✅ Hidden files copied" || echo "⚠️  No hidden files to copy"
+          else
+            echo "❌ ERROR: Staging directory is empty!"
+            echo "Staging directory contents:"
+            ls -la "$STAGING_DIR" || echo "Cannot list staging directory"
+            exit 1
+          fi
 
           # Debug: Show what files are actually in the deploy branch
           echo "🔍 Files in deploy branch after copy:"
