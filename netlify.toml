@@ -1,8 +1,8 @@
 [build]
-# Build command to run the same script as local
-command = "./build-web.sh"
-# Publish the dist directory created by build script
-publish = "dist"
+# No build command - files are pre-built by GitHub Actions
+command = ""
+# Publish the root directory which contains pre-built files
+publish = "."
 
 # Environment variables
 [build.environment]
@@ -44,18 +44,18 @@ Expires = "0"
 
 # Production deployment from deploy branch
 [context.production]
-command = "./build-web.sh"
-publish = "dist"
+command = ""
+publish = "."
 
 # Deploy previews
 [context.deploy-preview]
-command = "./build-web.sh"
-publish = "dist"
+command = ""
+publish = "."
 
 # Branch deploys
 [context.branch-deploy]
-command = "./build-web.sh"
-publish = "dist"
+command = ""
+publish = "."
 
 # SPA fallback for routing
 [[redirects]]
