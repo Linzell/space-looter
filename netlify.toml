@@ -10,6 +10,20 @@ command = ""
 [build.processing]
 skip_processing = true
 
+# Force rebuild on any file change
+[build.environment]
+NODE_ENV = "production"
+NETLIFY_PURGE_CACHE = "true"
+
+# Build optimization
+[build.processing.css]
+bundle = false
+minify = false
+
+[build.processing.js]
+bundle = false
+minify = false
+
 # Headers for WASM and security
 [[headers]]
 for = "/*"
@@ -20,45 +34,72 @@ X-Frame-Options = "SAMEORIGIN"
 X-Content-Type-Options = "nosniff"
 Referrer-Policy = "strict-origin-when-cross-origin"
 
-# WASM MIME type - reduced caching for cache-busted files
+# WASM MIME type - no caching to ensure new files are served
 [[headers]]
 for = "*.wasm"
 [headers.values]
 Content-Type = "application/wasm"
-Cache-Control = "public, max-age=3600"
+Cache-Control = "no-cache, no-store, must-revalidate"
+Pragma = "no-cache"
+Expires = "0"
+ETag = ""
 
-# JavaScript files caching - reduced for cache-busted files
+# JavaScript files caching - no caching to ensure new files are served
 [[headers]]
 for = "*.js"
-[headers.values]
-Cache-Control = "public, max-age=3600"
-
-# HTML files - no caching to ensure latest references
-[[headers]]
-for = "*.html"
 [headers.values]
 Cache-Control = "no-cache, no-store, must-revalidate"
 Pragma = "no-cache"
 Expires = "0"
+ETag = ""
+
+# HTML files - aggressive no-cache headers
+[[headers]]
+for = "*.html"
+[headers.values]
+Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
+Pragma = "no-cache"
+Expires = "0"
+Last-Modified = ""
+ETag = ""
 
 # Production deployment (from deploy branch)
 [context.production]
 publish = "."
 command = ""
+[context.production.environment]
+NODE_ENV = "production"
+NETLIFY_PURGE_CACHE = "true"
 
 # Branch deploys (only from deploy branch)
 [context.deploy-preview]
 publish = "."
 command = ""
+[context.deploy-preview.environment]
+NODE_ENV = "preview"
+NETLIFY_PURGE_CACHE = "true"
 
 # Deploy previews for the deploy branch
 [context.branch-deploy]
 publish = "."
 command = ""
+[context.branch-deploy.environment]
+NODE_ENV = "staging"
+NETLIFY_PURGE_CACHE = "true"
 
-# Environment variables for different contexts
-[context.production.environment]
-NODE_ENV = "production"
+# Force complete rebuild for any deploy - no plugins needed for static site
 
-[context.deploy-preview.environment]
-NODE_ENV = "preview"
+# Add redirects to ensure proper MIME types
+[[redirects]]
+from = "/*.wasm"
+to = "/:splat.wasm"
+status = 200
+force = true
+[redirects.headers]
+Content-Type = "application/wasm"
+Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
