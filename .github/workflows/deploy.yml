@@ -42,21 +42,13 @@ jobs:
           echo "📊 Build statistics:"
           du -h dist/*
 
-      - name: Checkout deploy branch
-        uses: actions/checkout@v4
-        with:
-          ref: deploy
-          path: deploy-branch
-          token: ${{ github.token }}
-          fetch-depth: 0
-
-      - name: Update deploy branch
+      - name: Create clean deploy branch
         run: |
-          echo "🧹 Cleaning and updating deploy branch..."
-          cd deploy-branch
+          echo "🧹 Creating clean deploy branch..."
 
-          # Clean all existing files (but don't commit yet)
-          rm -rf * .[!.]* 2>/dev/null || true
+          # Create a temporary directory for deploy files
+          mkdir -p temp-deploy
+          cd temp-deploy
 
           # Copy built files from dist
           echo "📁 Copying built files..."
@@ -100,45 +92,29 @@ jobs:
           ls -la >> DEPLOYMENT.md
           echo "\`\`\`" >> DEPLOYMENT.md
 
-          echo "✅ Deploy branch updated with clean files"
+          echo "✅ Deploy files prepared"
 
-      - name: Commit and push to deploy branch
+      - name: Deploy to deploy branch
         run: |
-          cd deploy-branch
+          cd temp-deploy
 
-          # Debug: Show current state
-          echo "📊 Current directory: $(pwd)"
-          echo "📊 Git status before:"
-          git status
-          echo "📊 Git branches:"
-          git branch -a
-
+          git init
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Ensure we're on the deploy branch
-          echo "📊 Checking out deploy branch..."
-          git checkout deploy || git checkout -b deploy
-
-          echo "📊 Current branch: $(git branch --show-current)"
-
           git add .
+          git commit -m "Deploy ${{ github.ref_name }}
 
-          echo "📊 Git status after add:"
-          git status
+          - Built from commit: ${{ github.sha }}
+          - Build #${{ github.run_number }}
+          - Generated at: $(date -u)"
 
-          if git diff --staged --quiet; then
-            echo "No changes to deploy"
-          else
-            git commit -m "Deploy ${{ github.ref_name }}
+          # Add remote with authentication
+          git remote add origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
 
-            - Built from commit: ${{ github.sha }}
-            - Build #${{ github.run_number }}
-            - Generated at: $(date -u)"
-
-            git push origin deploy
-            echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
-          fi
+          # Force push to deploy branch
+          git push --force origin HEAD:deploy
+          echo "✅ Deployed ${{ github.ref_name }} to deploy branch"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
