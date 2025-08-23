@@ -44,8 +44,14 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy everything from main
-          git checkout ${{ github.ref_name }} -- .
+          # Copy only built files to deploy branch root
+          git checkout ${{ github.ref_name }} -- dist/
+          git checkout ${{ github.ref_name }} -- netlify.toml
+          git checkout ${{ github.ref_name }} -- .github/actions/setup-system-deps/action.yml
+
+          # Move built files to root and copy netlify config
+          mv dist/* .
+          rmdir dist
 
           # Add all files and commit
           git add .
