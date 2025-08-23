@@ -43,11 +43,8 @@ impl WebRandomGenerator {
     /// Create new random generator with time-based seed
     #[cfg(not(target_arch = "wasm32"))]
     pub fn time_seed() -> Self {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64;
+        use crate::infrastructure::time::TimeService;
+        let seed = TimeService::now_millis().unwrap_or(0) * 1_000_000; // Convert millis to nanos
         Self::new(seed)
     }
 

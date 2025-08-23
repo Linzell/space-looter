@@ -19,20 +19,36 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Core game engine with 3D support and audio
-bevy = { version = "0.16.1", features = ["webgl2", "vorbis", "wav"] }
+bevy = { version = "0.16.1", features = [
+    "default",
+    "webgl2",
+    "vorbis",
+    "wav",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_audio",
+    "x11",
+] }
 
 # RPG mechanics and data handling
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "wasm-bindgen"] }
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 thiserror = "1.0"
+once_cell = "1.19"
 
 # Dice rolling and procedural generation
 rand = { version = "0.8", features = ["getrandom"] }
+getrandom = { version = "0.2", features = ["js"] }
 fastrand = "2.0"
 noise = "0.9"
 
 # Web-specific dependencies (only for WASM builds)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = [
     "console",
     "Window",
@@ -40,27 +56,30 @@ web-sys = { version = "0.3", features = [
     "Element",
     "HtmlCanvasElement",
     "WebGl2RenderingContext",
+    "WebGlRenderingContext",
     "Performance",
     "Navigator",
     "HtmlElement",
     "CssStyleDeclaration",
-], optional = true }
+    "CanvasRenderingContext2d",
+    "ImageData",
+    "AudioContext",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "GainNode",
+    "AudioDestinationNode",
+    "DomTokenList",
+] }
 
-wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3", optional = true }
-console_error_panic_hook = { version = "0.1", optional = true }
-wasm-logger = { version = "0.2", optional = true }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+wasm-logger = "0.2"
+wasm-bindgen-futures = "0.4"
 
 # Features
 [features]
 default = []
-web = [
-    "web-sys",
-    "wasm-bindgen",
-    "js-sys",
-    "console_error_panic_hook",
-    "wasm-logger",
-]
 
 # Optimizations for release builds
 [profile.release]

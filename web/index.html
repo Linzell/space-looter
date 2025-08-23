@@ -137,6 +137,8 @@
             top: 10px;
             left: 10px;
             z-index: 1000;
+            display: flex;
+            gap: 5px;
         }
 
         .audio-btn {
@@ -147,6 +149,8 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
+            min-width: 40px;
+            transition: all 0.2s ease;
         }
 
         .audio-btn:hover {
@@ -154,6 +158,14 @@
         }
 
         .audio-btn.muted {
+            background: #d32f2f;
+        }
+
+        .audio-btn.playing {
+            background: #2e7d32;
+        }
+
+        .audio-btn.stopped {
             background: #666;
         }
 
@@ -206,62 +218,123 @@
         <div id="game-area" class="hidden">
             <!-- Audio controls -->
             <div class="audio-controls">
-                <button id="audio-toggle" class="audio-btn" title="Toggle Audio">🔊</button>
+                <button id="music-play" class="audio-btn playing" title="Play Music">▶️</button>
+                <button id="music-stop" class="audio-btn" title="Stop Music">⏹️</button>
+                <button id="audio-toggle" class="audio-btn" title="Toggle All Audio">🔊</button>
             </div>
 
             <!-- Fullscreen button -->
             <button id="fullscreen-btn" class="fullscreen-btn" title="Toggle Fullscreen">⛶</button>
 
-            <!-- Controls toggle button -->
-            <button id="controls-toggle" class="controls-toggle" title="Toggle Controls">ℹ️</button>
-
             <!-- Canvas will be inserted here by Bevy -->
             <canvas id="bevy"></canvas>
-        </div>
-
-        <!-- Controls guide -->
-        <div id="controls" class="controls">
-            <div style="max-width: 600px; margin: 0 auto;">
-                <h3 style="margin-top: 0; color: #0080ff;">🎮 How to Play</h3>
-                <p><strong>Movement:</strong> Use WASD or Arrow Keys to move your ship</p>
-                <p><strong>Goal:</strong> Collect enemies to increase your score</p>
-                <p><strong>Tip:</strong> Stay on screen and avoid letting enemies escape!</p>
-            </div>
         </div>
     </div>
 
     <script type="module">
         let wasmModule;
         let audioEnabled = true;
+        let musicPlaying = true;
 
-        // Audio toggle functionality
+        // Music play functionality
+        document.getElementById('music-play').addEventListener('click', () => {
+            if (wasmModule && wasmModule.play_music) {
+                wasmModule.play_music();
+                musicPlaying = true;
+                updateMusicButtonStates();
+                console.log('🎵 Music play requested');
+
+                // Show visual feedback
+                const btn = document.getElementById('music-play');
+                btn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    btn.style.transform = 'scale(1)';
+                }, 150);
+            } else {
+                console.log('WASM module not loaded or play_music not available');
+            }
+        });
+
+        // Music stop functionality
+        document.getElementById('music-stop').addEventListener('click', () => {
+            if (wasmModule && wasmModule.stop_music) {
+                wasmModule.stop_music();
+                musicPlaying = false;
+                updateMusicButtonStates();
+                console.log('🔇 Music stop requested');
+
+                // Show visual feedback
+                const btn = document.getElementById('music-stop');
+                btn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    btn.style.transform = 'scale(1)';
+                }, 150);
+            } else {
+                console.log('WASM module not loaded or stop_music not available');
+            }
+        });
+
+        // Update music button visual states
+        function updateMusicButtonStates() {
+            const playBtn = document.getElementById('music-play');
+            const stopBtn = document.getElementById('music-stop');
+
+            // Sync with WASM state if available
+            if (wasmModule && wasmModule.get_music_state) {
+                try {
+                    musicPlaying = wasmModule.get_music_state();
+                } catch (e) {
+                    console.log('Could not get music state from WASM:', e);
+                }
+            }
+
+            if (musicPlaying) {
+                playBtn.classList.add('playing');
+                playBtn.classList.remove('stopped');
+                stopBtn.classList.remove('playing');
+                stopBtn.classList.add('stopped');
+            } else {
+                playBtn.classList.remove('playing');
+                playBtn.classList.add('stopped');
+                stopBtn.classList.add('playing');
+                stopBtn.classList.remove('stopped');
+            }
+        }
+
+        // Audio toggle functionality (for all audio)
         document.getElementById('audio-toggle').addEventListener('click', () => {
             audioEnabled = !audioEnabled;
             const btn = document.getElementById('audio-toggle');
             btn.textContent = audioEnabled ? '🔊' : '🔇';
             btn.classList.toggle('muted', !audioEnabled);
 
-            // If the game is loaded, we could send this state to the game
-            if (wasmModule) {
-                // This would require additional WASM bindings
+            if (wasmModule && wasmModule.toggle_audio) {
+                wasmModule.toggle_audio(audioEnabled);
                 console.log('Audio toggled:', audioEnabled);
+            } else {
+                console.log('WASM module not loaded or toggle_audio not available');
             }
         });
 
         // Controls toggle functionality
         document.getElementById('controls-toggle').addEventListener('click', () => {
             const controls = document.getElementById('controls');
-            controls.classList.toggle('hidden-controls');
+            if (controls) {
+                controls.classList.toggle('hidden-controls');
+            }
         });
 
         // Auto-hide controls after 3 seconds of game interaction
         let controlsTimeout;
         function resetControlsTimeout() {
             const controls = document.getElementById('controls');
+            if (!controls) return; // Exit early if controls element doesn't exist
             controls.classList.remove('hidden-controls');
             clearTimeout(controlsTimeout);
             controlsTimeout = setTimeout(() => {
-                controls.classList.add('hidden-controls');
+                if (controls) { // Check again in case element was removed
+                    controls.classList.add('hidden-controls');
+                }
             }, 3000);
         }
 
@@ -285,60 +358,129 @@
         });
 
         // Enhanced error handling
-        function showError(message) {
+        function showError(message, details = null) {
+            console.error('Game Error:', message, details);
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('game-area').classList.add('hidden');
-            document.getElementById('error-message').textContent = message;
+
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = message;
+
+            if (details) {
+                const detailsElement = document.createElement('p');
+                detailsElement.textContent = `Details: ${details}`;
+                detailsElement.style.fontSize = '12px';
+                detailsElement.style.color = '#ff6666';
+                errorElement.appendChild(detailsElement);
+            }
+
             document.getElementById('error').classList.remove('hidden');
         }
 
         // Enhanced loading completion
         function showGame() {
             document.getElementById('loading').classList.add('hidden');
-            document.getElementById('error').classList.add('hidden');
             document.getElementById('game-area').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+
+            // Initialize button states after a short delay to ensure WASM is ready
+            setTimeout(() => {
+                updateMusicButtonStates();
+            }, 100);
         }
 
-        // Browser compatibility check
+        // Enhanced browser compatibility check
         function checkCompatibility() {
+            console.log('🔍 Checking browser compatibility...');
+
+            // Check WebAssembly support
             if (!window.WebAssembly) {
-                showError('WebAssembly is not supported in this browser.');
+                showError('WebAssembly is not supported in this browser.',
+                         'Please use a modern browser like Chrome 57+, Firefox 52+, Safari 11+, or Edge 16+');
+                return false;
+            }
+            console.log('✅ WebAssembly supported');
+
+            // Check WebGL support (both versions)
+            const canvas = document.createElement('canvas');
+            let gl = null;
+
+            try {
+                gl = canvas.getContext('webgl2');
+                if (gl) {
+                    console.log('✅ WebGL2 supported');
+                } else {
+                    gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        console.log('⚠️ WebGL1 only (WebGL2 not supported)');
+                    } else {
+                        showError('WebGL is not supported in this browser.',
+                                 'Please enable WebGL or use a compatible browser');
+                        return false;
+                    }
+                }
+            } catch (e) {
+                console.warn('WebGL detection error:', e);
+                showError('WebGL detection failed.',
+                         'This might be due to hardware limitations or disabled WebGL');
                 return false;
             }
 
-            if (!window.WebGL2RenderingContext && !window.WebGLRenderingContext) {
-                showError('WebGL is not supported in this browser.');
-                return false;
+            // Check for required features
+            const requiredFeatures = [
+                'Promise',
+                'fetch',
+                'addEventListener'
+            ];
+
+            for (const feature of requiredFeatures) {
+                if (!window[feature]) {
+                    showError(`Required feature "${feature}" is not supported.`,
+                             'Please update your browser to a more recent version');
+                    return false;
+                }
             }
 
             return true;
         }
 
-        // Load the WASM module
+        // Load the WASM module with enhanced error handling
         async function loadGame() {
+            console.log('🚀 Starting Space Looter...');
+
             if (!checkCompatibility()) return;
 
             try {
+                console.log('📦 Loading WASM module...');
+
                 // Import the generated WASM module
                 const { default: init } = await import('./space_looter.js');
+
+                console.log('🔧 Initializing WASM...');
                 wasmModule = await init();
+
+                console.log('✅ WASM loaded successfully');
 
                 // Game loaded successfully
                 showGame();
 
-                console.log('Space Looter loaded successfully!');
+                console.log('🎮 Space Looter loaded successfully!');
 
                 // Set up canvas to be responsive
                 const canvas = document.getElementById('bevy');
-                function resizeCanvas() {
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
+                if (canvas) {
+                    function resizeCanvas() {
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                    }
+
+                    resizeCanvas();
+                    window.addEventListener('resize', resizeCanvas);
+                } else {
+                    console.error('Canvas element not found');
                 }
 
-                resizeCanvas();
-                window.addEventListener('resize', resizeCanvas);
-
-                // Optional: Add keyboard event listeners for better input handling
+                // Add keyboard event listeners for better input handling
                 document.addEventListener('keydown', (e) => {
                     // Prevent default for game keys to avoid page scrolling
                     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
@@ -355,8 +497,27 @@
                 resetControlsTimeout();
 
             } catch (error) {
-                console.error('Error loading game:', error);
-                showError(`Failed to load game: ${error.message}`);
+                console.error('❌ Error loading game:', error);
+
+                let errorMessage = 'Failed to load game';
+                let errorDetails = null;
+
+                if (error.message) {
+                    if (error.message.includes('GPU')) {
+                        errorMessage = 'Graphics hardware not supported';
+                        errorDetails = 'Your browser or graphics card may not support WebGL. Try enabling hardware acceleration.';
+                    } else if (error.message.includes('WebGL')) {
+                        errorMessage = 'WebGL initialization failed';
+                        errorDetails = 'Please enable WebGL in your browser settings or try a different browser.';
+                    } else if (error.message.includes('unreachable')) {
+                        errorMessage = 'Game initialization failed';
+                        errorDetails = 'This may be due to browser compatibility issues. Try refreshing or using Chrome/Firefox.';
+                    } else {
+                        errorDetails = error.message;
+                    }
+                }
+
+                showError(errorMessage, errorDetails);
             }
         }
 
@@ -374,6 +535,24 @@
         } else {
             loadGame();
         }
+
+        // Global error handler for unhandled errors
+        window.addEventListener('error', (e) => {
+            console.error('Unhandled error:', e.error);
+            if (e.error && e.error.message && e.error.message.includes('unreachable')) {
+                showError('Game crashed due to compatibility issues',
+                         'Try refreshing the page or use a different browser (Chrome or Firefox recommended)');
+            }
+        });
+
+        // Global error handler for unhandled promise rejections
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Unhandled promise rejection:', e.reason);
+            if (e.reason && e.reason.toString().includes('WebGL')) {
+                showError('WebGL initialization failed',
+                         'Please enable hardware acceleration and WebGL in your browser settings');
+            }
+        });
 
         // Handle window resize
         window.addEventListener('resize', () => {

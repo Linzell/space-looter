@@ -32,12 +32,9 @@ impl EntityId {
 
     /// Generate a new unique ID based on current timestamp
     pub fn generate() -> Self {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
-        Self(timestamp)
+        use crate::infrastructure::time::TimeService;
+        let timestamp = TimeService::now_millis().unwrap_or(0) as u128 * 1_000_000; // Convert millis to nanos
+        Self(timestamp as u64)
     }
 
     /// Get the raw ID value

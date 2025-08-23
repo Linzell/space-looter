@@ -31,11 +31,8 @@ impl RandomNumberGenerator {
     fn default_seed() -> u64 {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            use std::time::{SystemTime, UNIX_EPOCH};
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos() as u64
+            use crate::infrastructure::time::TimeService;
+            TimeService::now_millis().unwrap_or(0) * 1_000_000 // Convert millis to nanos
         }
         #[cfg(target_arch = "wasm32")]
         {

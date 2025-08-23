@@ -5,8 +5,14 @@
 //! optimizations, and WASM bindings.
 
 use crate::infrastructure::{InfrastructureError, InfrastructureResult};
-#[cfg(feature = "web")]
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::closure::Closure;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsValue;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures;
 
 /// Web-specific configuration and utilities
 pub struct WebInfrastructure {
@@ -122,8 +128,10 @@ impl Default for WebInfrastructure {
 
 /// Web-specific utilities
 pub mod utils {
-    #[cfg(feature = "web")]
     use super::*;
+    use crate::infrastructure::{InfrastructureError, InfrastructureResult};
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen::prelude::*;
 
     /// Check if running in web browser
     pub fn is_web() -> bool {
@@ -229,6 +237,8 @@ pub mod events {
     pub struct WebEventListener {
         #[cfg(target_arch = "wasm32")]
         _closure: Option<Closure<dyn FnMut(web_sys::Event)>>,
+        #[cfg(not(target_arch = "wasm32"))]
+        _phantom: std::marker::PhantomData<()>,
     }
 
     impl WebEventListener {
@@ -297,7 +307,9 @@ pub mod events {
         where
             F: FnMut(f32, f32) + 'static,
         {
-            Ok(Self {})
+            Ok(Self {
+                _phantom: std::marker::PhantomData,
+            })
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -305,7 +317,9 @@ pub mod events {
         where
             F: FnMut(bool) + 'static,
         {
-            Ok(Self {})
+            Ok(Self {
+                _phantom: std::marker::PhantomData,
+            })
         }
     }
 }

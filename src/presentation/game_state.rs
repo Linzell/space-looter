@@ -77,13 +77,14 @@ pub struct RpgGameSession {
     /// Completed quests
     pub completed_quests: Vec<Quest>,
     /// Current exploration position
+    /// Current player position cache
     pub current_position: Position3D,
-    /// Session start time
-    pub session_start: std::time::Instant,
+    /// Session start time (milliseconds since epoch)
+    pub session_start: u64,
     /// Total play time in seconds
     pub total_play_time: u32,
-    /// Last save timestamp
-    pub last_save: Option<std::time::Instant>,
+    /// Last save timestamp (milliseconds since epoch)
+    pub last_save: Option<u64>,
 }
 
 impl RpgGameSession {
@@ -95,7 +96,7 @@ impl RpgGameSession {
             base,
             active_quests: Vec::new(),
             completed_quests: Vec::new(),
-            session_start: std::time::Instant::now(),
+            session_start: crate::infrastructure::time::TimeService::now_millis().unwrap_or(0),
             total_play_time: 0,
             last_save: None,
         }
@@ -130,20 +131,35 @@ impl RpgGameSession {
 
     /// Update play time
     pub fn update_play_time(&mut self) {
-        let elapsed = self.session_start.elapsed().as_secs() as u32;
+        use crate::infrastructure::time::TimeService;
+        let now = TimeService::now_millis().unwrap_or(0);
+        let elapsed = if now >= self.session_start {
+            ((now - self.session_start) / 1000) as u32 // Convert millis to seconds
+        } else {
+            0
+        };
         self.total_play_time = elapsed;
     }
 
     /// Mark as saved
     pub fn mark_saved(&mut self) {
-        self.last_save = Some(std::time::Instant::now());
+        use crate::infrastructure::time::TimeService;
+        self.last_save = Some(TimeService::now_millis().unwrap_or(0));
     }
 
     /// Check if needs saving (more than 5 minutes since last save)
     pub fn needs_save(&self) -> bool {
+        use crate::infrastructure::time::TimeService;
         match self.last_save {
-            Some(last) => last.elapsed().as_secs() > 300, // 5 minutes
-            None => true,                                 // Never saved
+            Some(last) => {
+                let now = TimeService::now_millis().unwrap_or(0);
+                if now >= last {
+                    (now - last) / 1000 > 300 // 5 minutes in seconds
+                } else {
+                    false
+                }
+            }
+            None => true, // Never saved
         }
     }
 }

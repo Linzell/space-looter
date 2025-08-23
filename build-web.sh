@@ -50,8 +50,7 @@ wasm-pack build \
     --target web \
     --out-dir pkg \
     --release \
-    --no-typescript \
-    -- --features web
+    --no-typescript
 
 # Check if build was successful
 if [ ! -f "pkg/space_looter.js" ]; then
@@ -67,6 +66,15 @@ cp pkg/space_looter.js dist/
 cp pkg/space_looter_bg.wasm dist/
 if [ -f "pkg/space_looter.d.ts" ]; then
     cp pkg/space_looter.d.ts dist/
+fi
+
+# Copy assets directory if it exists
+if [ -d "assets" ]; then
+    echo -e "${BLUE}🎵 Copying game assets (audio, fonts, icons)...${NC}"
+    cp -r assets dist/
+    echo -e "${GREEN}✅ Assets copied successfully${NC}"
+else
+    echo -e "${YELLOW}⚠️  No assets directory found - audio and graphics may not work${NC}"
 fi
 
 # Optimize WASM file (if wasm-opt is available)

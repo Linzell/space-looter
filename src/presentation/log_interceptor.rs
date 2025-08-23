@@ -5,6 +5,7 @@
 //! log messages based on their content and log level.
 
 use crate::domain::services::game_log_service::{GameLogService, GameLogType};
+use crate::infrastructure::time::TimeService;
 use bevy::prelude::*;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -34,7 +35,7 @@ pub struct InterceptedLogMessage {
     pub message: String,
     pub level: String,
     pub target: String,
-    pub timestamp: std::time::Instant,
+    pub timestamp: u64,
 }
 
 impl Default for LogInterceptorState {
@@ -171,7 +172,7 @@ impl LogInterceptorState {
             message,
             level,
             target,
-            timestamp: std::time::Instant::now(),
+            timestamp: TimeService::now_millis().unwrap_or(0),
         };
 
         self.intercepted_messages.push_back(intercepted);
@@ -285,7 +286,7 @@ mod tests {
             message: "Player moved to position: Position3D { x: -9, y: -2, z: 0 }".to_string(),
             level: "INFO".to_string(),
             target: "space_looter".to_string(),
-            timestamp: std::time::Instant::now(),
+            timestamp: TimeService::now_millis().unwrap_or(0),
         };
 
         let result = categorize_log_message(&intercepted);

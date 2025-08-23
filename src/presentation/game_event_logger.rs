@@ -39,7 +39,8 @@ impl Plugin for GameEventLoggerPlugin {
 #[derive(Resource, Default)]
 pub struct EventLoggerState {
     pub last_position: Option<Position3D>,
-    pub session_start: Option<std::time::Instant>,
+    /// Session start time (milliseconds since epoch)
+    pub session_start: Option<u64>,
 }
 
 /// Event fired when a movement attempt occurs

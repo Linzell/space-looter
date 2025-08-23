@@ -17,11 +17,13 @@
 
 pub mod bevy;
 pub mod random;
+pub mod time;
 pub mod web;
 
 // Re-export common infrastructure types
 pub use bevy::{BevyGamePlugin, BevySystemsPlugin};
 pub use random::RandomNumberGenerator;
+pub use time::TimeService;
 
 /// Infrastructure-specific error types
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +32,8 @@ pub enum InfrastructureError {
     BevyError(String),
     /// Random number generation failed
     RandomError(String),
+    /// Time operation error
+    TimeError(String),
     /// Web platform error
     WebError(String),
     /// External service error
@@ -45,6 +49,7 @@ impl std::fmt::Display for InfrastructureError {
         match self {
             InfrastructureError::BevyError(msg) => write!(f, "Bevy error: {}", msg),
             InfrastructureError::RandomError(msg) => write!(f, "Random error: {}", msg),
+            InfrastructureError::TimeError(msg) => write!(f, "Time error: {}", msg),
             InfrastructureError::WebError(msg) => write!(f, "Web error: {}", msg),
             InfrastructureError::ExternalServiceError(msg) => {
                 write!(f, "External service error: {}", msg)

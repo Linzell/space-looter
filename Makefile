@@ -181,7 +181,7 @@ dev-web: ## Web development with auto-rebuild (internal)
 	@echo "$(YELLOW)File watcher will rebuild on changes. Refresh browser to see updates.$(NC)"
 	@echo "$(YELLOW)Starting file watcher in background...$(NC)"
 	@trap 'echo "$(RED)Stopping...$(NC)"; pkill -f "cargo watch" 2>/dev/null || true; exit 0' INT TERM; \
-	$(CARGO) watch -w src -w web -s "wasm-pack build --target web --out-dir pkg --release --no-typescript -- --features web && cp pkg/space_looter.js $(WEB_DIR)/ && cp pkg/space_looter_bg.wasm $(WEB_DIR)/ && echo '$(GREEN)✅ Web build updated! Refresh browser.$(NC)'" & \
+	$(CARGO) watch -w src -w web -s "wasm-pack build --target web --out-dir pkg --release --no-typescript && cp pkg/space_looter.js $(WEB_DIR)/ && cp pkg/space_looter_bg.wasm $(WEB_DIR)/ && echo '$(GREEN)✅ Web build updated! Refresh browser.$(NC)'" & \
 	sleep 2; \
 	if command -v python3 &> /dev/null; then \
 		cd $(WEB_DIR) && python3 serve.py; \

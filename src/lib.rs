@@ -15,26 +15,143 @@ pub mod presentation;
 
 use crate::domain::services::audio_service::AudioService;
 use crate::domain::services::game_log_service::{GameLogService, GameLogType};
+use crate::infrastructure::time::TimeService as InfraTimeService;
 
 use bevy::prelude::*;
 use bevy::time::{Timer, TimerMode};
 
+/// Web-specific initialization for WASM
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+pub fn wasm_main() {
+    // Set panic hook first for better error reporting
+    console_error_panic_hook::set_once();
+
+    // Initialize logging
+    wasm_logger::init(wasm_logger::Config::default());
+
+    // Initialize web infrastructure
+    let web_infra = infrastructure::web::WebInfrastructure::default();
+    if let Err(e) = web_infra.initialize() {
+        web_sys::console::error_1(
+            &format!("Failed to initialize web infrastructure: {}", e).into(),
+        );
+        return;
+    }
+
+    web_sys::console::log_1(&"🎮 Space Looter starting in WASM 3D mode".into());
+    web_sys::console::log_1(&"🚀 Initializing full 3D isometric RPG experience".into());
+
+    // Hide loading screen and show the game
+    let _ = infrastructure::web::utils::set_loading_state(false);
+
+    // Make sure game area is visible for 3D rendering
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            if let Some(game_area) = document.get_element_by_id("game-area") {
+                let class_list = game_area.class_list();
+                let _ = class_list.remove_1("hidden");
+            }
+        }
+    }
+
+    // Create and run full 3D game
+    web_sys::console::log_1(&"🎮 Initializing 3D game engine...".into());
+    let mut app = create_app();
+    app.run();
+}
+
+/// Creates a headless app without any rendering for web compatibility
+#[cfg(target_arch = "wasm32")]
+fn create_headless_app() -> App {
+    let mut app = App::new();
+
+    web_sys::console::log_1(&"🔧 Setting up headless game mode...".into());
+
+    // Add only minimal plugins for basic functionality
+    app.add_plugins(MinimalPlugins);
+
+    // Add StatesPlugin for state management support
+    app.add_plugins(bevy::state::app::StatesPlugin);
+
+    // Configure RPG functionality without rendering
+    configure_headless_rpg_app(&mut app);
+
+    web_sys::console::log_1(&"✅ Headless app configured successfully".into());
+    app
+}
+
+/// Configure headless RPG app without rendering components
+#[cfg(target_arch = "wasm32")]
+fn configure_headless_rpg_app(app: &mut App) {
+    web_sys::console::log_1(&"⚙️ Configuring RPG systems...".into());
+
+    // Initialize RPG state management
+    app.init_state::<presentation::RpgAppState>();
+
+    // Add domain services as resources (no rendering required)
+    app.insert_resource(domain::services::TileMovementService::new())
+        .insert_resource(domain::services::RestingService::new());
+
+    // Add basic RPG resources without rendering dependencies
+    app.insert_resource(infrastructure::bevy::resources::PlayerResource::new())
+        .insert_resource(infrastructure::bevy::resources::BaseResource::new())
+        .insert_resource(infrastructure::bevy::resources::MapResource::new())
+        .insert_resource(infrastructure::bevy::resources::GameStatsResource::new())
+        .insert_resource(infrastructure::bevy::resources::GameTimerResource::new());
+
+    // Initialize a demo game session
+    let demo_player = domain::Player::create_new_character(
+        "Web Demo Player".to_string(),
+        domain::Position3D::origin(),
+    )
+    .unwrap();
+    let demo_base = domain::Base::new(
+        domain::EntityId::generate(),
+        "Web Demo Base".to_string(),
+        domain::Position3D::origin(),
+    )
+    .unwrap();
+    let rpg_session = presentation::game_state::RpgGameSession::new(demo_player, demo_base);
+    app.insert_resource(rpg_session);
+
+    // Add headless game systems that log to console (no input-dependent systems)
+    app.add_systems(
+        Update,
+        (
+            headless_game_tick_system,
+            rpg_turn_management_system,
+            rpg_dice_mechanics_system,
+        ),
+    );
+
+    web_sys::console::log_1(&"⚙️ RPG configuration complete - game ready!".into());
+}
+
+/// System that runs the headless game and logs status to console
+#[cfg(target_arch = "wasm32")]
+fn headless_game_tick_system(time: Res<Time>) {
+    // Log game status every 10 seconds
+    static mut LAST_LOG: f32 = 0.0;
+    let current_time = time.elapsed_secs();
+
+    unsafe {
+        if current_time - LAST_LOG >= 10.0 {
+            web_sys::console::log_1(
+                &format!(
+                    "🎮 Game Status: Running for {:.1}s - RPG engine active, dice systems ready",
+                    current_time
+                )
+                .into(),
+            );
+            LAST_LOG = current_time;
+        }
+    }
+}
+
 /// Creates and configures the main RPG application
 pub fn create_app() -> App {
     let mut app = App::new();
-
-    // Configure Bevy plugins with web-optimized settings
-    #[cfg(target_arch = "wasm32")]
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "Space Looter - 3D Isometric RPG".into(),
-            canvas: Some("#bevy".into()),
-            fit_canvas_to_parent: true,
-            prevent_default_event_handling: false,
-            ..default()
-        }),
-        ..default()
-    }));
 
     // Configure for native with RPG-appropriate resolution
     #[cfg(not(target_arch = "wasm32"))]
@@ -47,6 +164,27 @@ pub fn create_app() -> App {
         ..default()
     }));
 
+    // For WASM, we use the web-compatible version with proper canvas setup
+    #[cfg(target_arch = "wasm32")]
+    {
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Space Looter - 3D Isometric RPG".into(),
+                canvas: Some("#bevy".into()),
+                fit_canvas_to_parent: true,
+                prevent_default_event_handling: false,
+                ..default()
+            }),
+            ..default()
+        }));
+    }
+
+    configure_rpg_app(&mut app);
+    app
+}
+
+/// Common RPG app configuration used by both native and web versions
+fn configure_rpg_app(app: &mut App) {
     // Initialize RPG state management
     app.init_state::<presentation::RpgAppState>();
 
@@ -77,7 +215,8 @@ pub fn create_app() -> App {
         .insert_resource(infrastructure::bevy::resources::BaseResource::new())
         .insert_resource(infrastructure::bevy::resources::MapResource::new())
         .insert_resource(infrastructure::bevy::resources::GameStatsResource::new())
-        .insert_resource(infrastructure::bevy::resources::GameTimerResource::new());
+        .insert_resource(infrastructure::bevy::resources::GameTimerResource::new())
+        .insert_resource(MusicControl::default());
 
     // Add domain services as resources
     app.insert_resource(domain::services::TileMovementService::new())
@@ -116,6 +255,7 @@ pub fn create_app() -> App {
             handle_window_resize_system,
             rpg_state_transition_system,
             // Audio management
+            music_control_system,
             rpg_music_management_system,
         ),
     );
@@ -133,7 +273,6 @@ pub fn create_app() -> App {
     );
 
     info!("Space Looter RPG initialized successfully");
-    app
 }
 
 /// RPG system organization sets
@@ -693,14 +832,7 @@ fn process_movement_event(
                     }
                 }
 
-                // Additional audio for rare finds
-                if final_roll >= 18 {
-                    if let Some(audio_assets) = audio_assets {
-                        if let Some(resource_handle) = &audio_assets.resource_collect {
-                            commands.spawn(AudioPlayer::new(resource_handle.clone()));
-                        }
-                    }
-                }
+                // Note: Single audio play for all resource finds - no duplicate for rare finds
             }
         }
 
@@ -869,13 +1001,31 @@ fn process_movement_event(
 
 /// RPG dice mechanics and random events system
 fn rpg_dice_mechanics_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    keyboard_input: Option<Res<ButtonInput<KeyCode>>>,
     mut game_stats: ResMut<infrastructure::bevy::resources::GameStatsResource>,
     mut commands: Commands,
     audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
+    time: Res<Time>,
 ) {
-    // Roll dice on space bar press
-    if keyboard_input.just_pressed(KeyCode::Space) {
+    // Auto-roll for headless mode or manual roll with spacebar
+    let has_keyboard = keyboard_input.is_some();
+    let should_roll = if let Some(keyboard) = &keyboard_input {
+        keyboard.just_pressed(KeyCode::Space)
+    } else {
+        // Auto-roll every 5 seconds in headless mode
+        static mut LAST_ROLL_TIME: f32 = 0.0;
+        let current_time = time.elapsed_secs();
+        unsafe {
+            if current_time - LAST_ROLL_TIME >= 5.0 {
+                LAST_ROLL_TIME = current_time;
+                true
+            } else {
+                false
+            }
+        }
+    };
+
+    if should_roll {
         // Create a basic dice roll for demonstration
         if let Ok(dice_roll) = domain::DiceRoll::new(
             1,
@@ -893,35 +1043,69 @@ fn rpg_dice_mechanics_system(
                 }
             }
 
+            let roll_prefix = if has_keyboard { "" } else { "Auto-rolled " };
+
             match total {
                 20 => {
-                    info!("🎲 Critical Success! ({})", total);
+                    info!("🎲 {}Critical Success! ({})", roll_prefix, total);
                     game_stats.record_experience_gain(50);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Critical Success! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 18..=19 => {
-                    info!("🎲 Great Success! ({})", total);
+                    info!("🎲 {}Great Success! ({})", roll_prefix, total);
                     game_stats.record_experience_gain(25);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Great Success! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 15..=17 => {
-                    info!("🎲 Good Success! ({})", total);
+                    info!("🎲 {}Good Success! ({})", roll_prefix, total);
                     game_stats.record_experience_gain(25);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Good Success! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 10..=14 => {
-                    info!("🎲 Success! ({})", total);
+                    info!("🎲 {}Success! ({})", roll_prefix, total);
                     game_stats.record_experience_gain(10);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Success! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 6..=9 => {
-                    info!("🎲 Partial Success ({})", total);
+                    info!("🎲 {}Partial Success ({})", roll_prefix, total);
                     game_stats.record_experience_gain(5);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Partial Success! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 2..=5 => {
-                    info!("🎲 Failed Roll ({})", total);
+                    info!("🎲 {}Failed Roll ({})", roll_prefix, total);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Failed! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 1 => {
-                    info!("🎲 Critical Failure! ({})", total);
+                    info!("🎲 {}Critical Failure! ({})", roll_prefix, total);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Critical Failure! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
                 _ => {
-                    info!("🎲 Failed Roll ({})", total);
+                    info!("🎲 {}Failed Roll ({})", roll_prefix, total);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("🎲 {}Failed! Rolled: {}", roll_prefix, total).into(),
+                    );
                 }
             }
         }
@@ -982,17 +1166,122 @@ fn rpg_state_transition_system(
 #[derive(Component)]
 struct BackgroundMusic;
 
+#[derive(Resource)]
+struct MusicControl {
+    enabled: bool,
+    should_play: bool,
+}
+
+impl Default for MusicControl {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            should_play: true,
+        }
+    }
+}
+
+fn music_control_system(
+    mut music_control: ResMut<MusicControl>,
+    mut commands: Commands,
+    existing_music: Query<Entity, With<BackgroundMusic>>,
+    current_state: Res<State<presentation::RpgAppState>>,
+    audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
+) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Check for music control commands from HTML
+        if let Ok(mut state) = MUSIC_CONTROL_STATE.lock() {
+            if state.should_stop && music_control.should_play {
+                // Stop all music immediately
+                for entity in existing_music.iter() {
+                    commands.entity(entity).despawn();
+                }
+                music_control.should_play = false;
+                web_sys::console::log_1(&"🔇 All music stopped by HTML control".into());
+                state.should_stop = false; // Reset the flag
+            }
+
+            if state.should_play && !music_control.should_play {
+                music_control.should_play = true;
+                web_sys::console::log_1(&"🎵 Music enabled by HTML control".into());
+
+                // Immediately start music for current state
+                if let Some(audio_assets) = &audio_assets {
+                    let current = current_state.get();
+
+                    // Stop any existing music first
+                    for entity in existing_music.iter() {
+                        commands.entity(entity).despawn();
+                    }
+
+                    // Start music based on current state
+                    match current {
+                        presentation::RpgAppState::MainMenu => {
+                            if let Some(menu_handle) = &audio_assets.menu_theme {
+                                let entity = commands
+                                    .spawn((
+                                        AudioPlayer::new(menu_handle.clone()),
+                                        PlaybackSettings::LOOP,
+                                        BackgroundMusic,
+                                    ))
+                                    .id();
+                                web_sys::console::log_1(
+                                    &format!("🎶 Restarted menu music: {:?}", entity).into(),
+                                );
+                            }
+                        }
+                        _ => {
+                            if let Some(ambient_handle) = &audio_assets.ambient_space {
+                                let entity = commands
+                                    .spawn((
+                                        AudioPlayer::new(ambient_handle.clone()),
+                                        PlaybackSettings::LOOP,
+                                        BackgroundMusic,
+                                    ))
+                                    .id();
+                                web_sys::console::log_1(
+                                    &format!("🌌 Restarted exploration music: {:?}", entity).into(),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Only update enabled state if audio is disabled
+            if !state.audio_enabled {
+                music_control.enabled = false;
+            } else {
+                music_control.enabled = true;
+            }
+        }
+    }
+}
+
 fn rpg_music_management_system(
     current_state: Res<State<presentation::RpgAppState>>,
     mut commands: Commands,
     audio_assets: Option<Res<presentation::audio_integration::AudioAssets>>,
     mut previous_state: Local<Option<presentation::RpgAppState>>,
+    music_control: Res<MusicControl>,
     // Query to find and despawn existing background music
     existing_music: Query<Entity, With<BackgroundMusic>>,
 ) {
     let Some(audio_assets) = audio_assets else {
         return;
     };
+
+    // Don't start music if explicitly disabled or should not play
+    if !music_control.enabled || !music_control.should_play {
+        // Only stop existing music if we have some playing
+        if !existing_music.is_empty() {
+            for entity in existing_music.iter() {
+                commands.entity(entity).despawn();
+            }
+        }
+        return;
+    }
 
     let current = current_state.get();
 
@@ -1107,30 +1396,9 @@ fn handle_window_resize_system() {
     // Window resize handling will be added later - focus on core mechanics first
 }
 
-/// WebAssembly entry point for RPG
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
-pub fn main() {
-    // Set up panic hook for better error messages in browser console
-    #[cfg(feature = "web")]
-    console_error_panic_hook::set_once();
-
-    // Initialize logging for web
-    #[cfg(feature = "web")]
-    wasm_logger::init(wasm_logger::Config::default());
-
-    info!("🎮 Starting Space Looter 3D Isometric RPG (WASM)");
-    info!("🎲 Use WASD/Arrow keys to explore, SPACE to roll dice");
-    info!("📋 Press B for base, Q for quests, I for inventory");
-
-    // Create and run the RPG app
-    let mut app = create_app();
-    app.run();
-}
-
-/// Native entry point for RPG (when used as a library)
+/// Native main function (for binary builds)
 #[cfg(not(target_arch = "wasm32"))]
-pub fn run() {
+pub fn main() {
     info!("🎮 Starting Space Looter 3D Isometric RPG (Native)");
     info!("🎲 Use WASD/Arrow keys to explore, SPACE to roll dice");
     info!("📋 Press B for base, Q for quests, I for inventory");
@@ -1138,4 +1406,104 @@ pub fn run() {
 
     let mut app = create_app();
     app.run();
+}
+
+/// Entry point for RPG (works on both native and WASM)
+pub fn run() {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        info!("🎮 Starting Space Looter 3D Isometric RPG (Native)");
+        info!("🎲 Use WASD/Arrow keys to explore, SPACE to roll dice");
+        info!("📋 Press B for base, Q for quests, I for inventory");
+        info!("🚀 Press ENTER in menu to start exploring!");
+
+        let mut app = create_app();
+        app.run();
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        // On WASM, the entry point is handled by wasm_main()
+        web_sys::console::log_1(&"Run called on WASM - use wasm_main() instead".into());
+    }
+}
+
+// Global music control resource for WASM communication
+#[cfg(target_arch = "wasm32")]
+use std::sync::{Arc, Mutex};
+#[cfg(target_arch = "wasm32")]
+static MUSIC_CONTROL_STATE: once_cell::sync::Lazy<Arc<Mutex<MusicControlState>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(MusicControlState::default())));
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug)]
+struct MusicControlState {
+    should_play: bool,
+    should_stop: bool,
+    audio_enabled: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Default for MusicControlState {
+    fn default() -> Self {
+        Self {
+            should_play: true,
+            should_stop: false,
+            audio_enabled: true,
+        }
+    }
+}
+
+// WASM bindings for HTML music controls
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn play_music() {
+    web_sys::console::log_1(&"🎵 Music play requested from HTML".into());
+
+    if let Ok(mut state) = MUSIC_CONTROL_STATE.lock() {
+        // Force a clean state reset
+        state.should_play = false; // Reset first
+        state.should_stop = false;
+        state.audio_enabled = true;
+
+        // Then enable play (this will trigger the restart logic)
+        state.should_play = true;
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn stop_music() {
+    web_sys::console::log_1(&"🔇 Music stop requested from HTML".into());
+
+    if let Ok(mut state) = MUSIC_CONTROL_STATE.lock() {
+        state.should_stop = true;
+        state.should_play = false;
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn toggle_audio(enabled: bool) {
+    web_sys::console::log_1(&format!("🔊 Audio toggle requested from HTML: {}", enabled).into());
+
+    if let Ok(mut state) = MUSIC_CONTROL_STATE.lock() {
+        state.audio_enabled = enabled;
+        if !enabled {
+            state.should_stop = true;
+            state.should_play = false;
+        } else {
+            state.should_play = true;
+            state.should_stop = false;
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn get_music_state() -> bool {
+    if let Ok(state) = MUSIC_CONTROL_STATE.lock() {
+        state.should_play && state.audio_enabled
+    } else {
+        true // Default to playing
+    }
 }

@@ -8,6 +8,7 @@ use crate::domain::services::game_log_service::{GameLogService, GameLogType};
 use crate::domain::value_objects::terrain::TerrainType;
 use crate::infrastructure::bevy::font_service::{BevyFontService, RegularText};
 use crate::infrastructure::bevy::resources::{GameStatsResource, MapResource, PlayerResource};
+use crate::infrastructure::time::TimeService;
 use crate::presentation::RpgAppState;
 use bevy::prelude::*;
 
@@ -69,7 +70,7 @@ pub struct GameLogPanel;
 /// Component for individual log entries
 #[derive(Component)]
 pub struct GameLogEntry {
-    pub timestamp: std::time::Instant,
+    pub timestamp: u64,
     pub log_type: GameLogType,
     pub fade_timer: Timer,
 }
@@ -524,7 +525,9 @@ fn update_game_log_display(
 
             if entry.fade_timer.finished() {
                 // Start fading after 10 seconds
-                let fade_progress = (entry.timestamp.elapsed().as_secs_f32() - 10.0).max(0.0) / 5.0;
+                let current_time = TimeService::now_millis().unwrap_or(0);
+                let elapsed_secs = ((current_time - entry.timestamp) as f32) / 1000.0;
+                let fade_progress = (elapsed_secs - 10.0).max(0.0) / 5.0;
                 let alpha = (1.0 - fade_progress).max(0.3);
 
                 let base_color = get_log_type_color(&entry.log_type);
@@ -565,7 +568,7 @@ fn update_game_log_display(
                         ..default()
                     },
                     GameLogEntry {
-                        timestamp: std::time::Instant::now(),
+                        timestamp: TimeService::now_millis().unwrap_or(0),
                         log_type: message.log_type.clone(),
                         fade_timer: Timer::from_seconds(10.0, TimerMode::Once),
                     },
