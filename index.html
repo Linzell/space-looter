@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Looter v0.0.24</title>
+    <title>Space Looter v0.0.25</title>
     <style>
         body {
             margin: 0;
@@ -197,9 +197,10 @@
             background: rgba(0, 96, 221, 0.9);
         }
     </style>
-  <meta name="build-hash" content="bc448fe1">
-  <meta name="build-number" content="23">
-  <meta name="build-timestamp" content="1755968871">
+  <meta name="build-hash" content="4940fb31">
+  <meta name="build-number" content="24">
+  <meta name="build-timestamp" content="1755969657">
+  <meta name="cache-bust" content="4940fb31-24-1755969657">
 </head>
 <body>
     <div class="game-container">
@@ -449,7 +450,7 @@
                 console.log('📦 Loading WASM module...');
 
                 // Import the generated WASM module
-                const { default: init } = await import('./space_looter.bc448fe1-23-1755968871.js');
+                const { default: init } = await import('./space_looter.js?v=4940fb31-24-1755969657');
 
                 console.log('🔧 Initializing WASM...');
                 wasmModule = await init();
@@ -563,6 +564,6 @@
     </script>
 
     <!-- Preload hint for the WASM module -->
-    <link rel="modulepreload" href="./space_looter.bc448fe1-23-1755968871.js">
+    <link rel="modulepreload" href="./space_looter.js">
 </body>
 </html>
