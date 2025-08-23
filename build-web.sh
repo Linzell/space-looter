@@ -25,7 +25,14 @@ check_tool() {
 
 echo -e "${BLUE}📋 Checking prerequisites...${NC}"
 check_tool "rustc" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-check_tool "wasm-pack" "curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"
+check_tool "wasm-pack" "cargo install wasm-pack --locked"
+
+# Show version information for debugging
+echo -e "${BLUE}🔍 Build environment versions:${NC}"
+echo "  Rust: $(rustc --version)"
+echo "  Cargo: $(cargo --version)"
+echo "  wasm-pack: $(wasm-pack --version)"
+echo "  Target: wasm32-unknown-unknown"
 
 # Add WASM target if not already added
 echo -e "${BLUE}🎯 Setting up WASM target...${NC}"
@@ -51,6 +58,10 @@ wasm-pack build \
     --out-dir pkg \
     --release \
     --no-typescript
+
+# Generate timestamp for cache busting
+TIMESTAMP=$(date +%s)
+echo -e "${BLUE}🕐 Using timestamp: ${TIMESTAMP} for cache busting${NC}"
 
 # Check if build was successful
 if [ ! -f "pkg/space_looter.js" ]; then
@@ -88,12 +99,58 @@ fi
 # Create dist directory and copy files
 echo -e "${BLUE}📁 Creating dist directory and copying files...${NC}"
 mkdir -p dist
-cp web/index.html dist/
+
+# Copy WASM and JS files
 cp pkg/space_looter.js dist/
 cp pkg/space_looter_bg.wasm dist/
+
+# Update the index.html to use timestamp for cache busting
+echo -e "${BLUE}🔄 Adding cache busting with timestamp ${TIMESTAMP}...${NC}"
+sed -e "s/import('\.\/space_looter\.js')/import('.\/space_looter.js?v=${TIMESTAMP}')/g" \
+    -e "s/wasmModule = await init();/wasmModule = await init('.\/space_looter_bg.wasm?v=${TIMESTAMP}');/g" \
+    -e "s/href=\"\.\/space_looter\.js\"/href=\".\/space_looter.js?v=${TIMESTAMP}\"/g" \
+    web/index.html > dist/index.html
+
 if [ -f "pkg/space_looter.d.ts" ]; then
     cp pkg/space_looter.d.ts dist/
 fi
+
+echo -e "${GREEN}✅ Files copied with cache busting timestamp: ${TIMESTAMP}${NC}"
+
+# Verify cache busting was applied
+echo -e "${BLUE}🔍 Verifying cache busting in HTML...${NC}"
+if grep -q "space_looter\.js?v=${TIMESTAMP}" dist/index.html; then
+    echo -e "${GREEN}✅ JS cache busting applied successfully${NC}"
+else
+    echo -e "${RED}❌ JS cache busting failed${NC}"
+fi
+
+if grep -q "space_looter_bg\.wasm?v=${TIMESTAMP}" dist/index.html; then
+    echo -e "${GREEN}✅ WASM cache busting applied successfully${NC}"
+else
+    echo -e "${RED}❌ WASM cache busting failed${NC}"
+fi
+
+echo -e "${BLUE}📋 Cache busting summary:${NC}"
+echo "  - Timestamp: ${TIMESTAMP}"
+echo "  - JS URL: space_looter.js?v=${TIMESTAMP}"
+echo "  - WASM URL: space_looter_bg.wasm?v=${TIMESTAMP}"
+
+# Create build info file for debugging
+echo -e "${BLUE}📋 Creating build info file...${NC}"
+cat > dist/build-info.json << EOF
+{
+  "buildTimestamp": "${TIMESTAMP}",
+  "buildDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "wasmPackVersion": "$(wasm-pack --version 2>/dev/null || echo 'unknown')",
+  "rustcVersion": "$(rustc --version 2>/dev/null || echo 'unknown')",
+  "jsFileHash": "$(md5sum pkg/space_looter.js | cut -d' ' -f1)",
+  "wasmFileHash": "$(md5sum pkg/space_looter_bg.wasm | cut -d' ' -f1)",
+  "jsFileSize": $(wc -c < pkg/space_looter.js),
+  "wasmFileSize": $(wc -c < pkg/space_looter_bg.wasm),
+  "cacheBreaker": "v=${TIMESTAMP}"
+}
+EOF
 
 # Copy assets directory if it exists
 if [ -d "assets" ]; then

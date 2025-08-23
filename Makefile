@@ -35,10 +35,12 @@ setup: ## Install all dependencies and tools
 	rustup target add wasm32-unknown-unknown
 	@echo "$(YELLOW)Checking for wasm-pack...$(NC)"
 	@if ! command -v wasm-pack &> /dev/null; then \
-		echo "$(YELLOW)Installing wasm-pack...$(NC)"; \
-		curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh; \
+		echo "$(YELLOW)Installing latest wasm-pack...$(NC)"; \
+		cargo install wasm-pack --locked; \
 	else \
 		echo "$(GREEN)✅ wasm-pack already installed$(NC)"; \
+		echo "$(YELLOW)Updating to latest version...$(NC)"; \
+		cargo install wasm-pack --locked --force; \
 	fi
 	@echo "$(YELLOW)Checking for cargo-watch...$(NC)"
 	@if ! command -v cargo-watch &> /dev/null; then \

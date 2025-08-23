@@ -21,7 +21,13 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.13.1 --force
+        run: |
+          # Install latest wasm-pack
+          cargo install wasm-pack --locked
+          # Verify versions for debugging
+          wasm-pack --version
+          rustc --version
+          cargo --version
 
       - name: Build
         run: |
