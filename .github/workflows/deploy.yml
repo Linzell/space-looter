@@ -140,6 +140,18 @@ jobs:
           echo "🔍 Verifying temporary storage contents:"
           ls -la /tmp/deploy-files/
 
+          # Specific WASM file verification before copy
+          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
+            echo "🔍 WASM file in temporary storage:"
+            echo "  Size: $(du -h /tmp/deploy-files/space_looter_bg.wasm | cut -f1)"
+            echo "  Size (bytes): $(wc -c < /tmp/deploy-files/space_looter_bg.wasm)"
+            echo "  Modified: $(stat -c %y /tmp/deploy-files/space_looter_bg.wasm)"
+            echo "  MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
+          else
+            echo "❌ WASM file missing from temporary storage!"
+            exit 1
+          fi
+
           # Copy all files from temporary storage
           echo "📦 Copying files..."
           cp -r /tmp/deploy-files/* . && echo "✅ All files copied" || { echo "❌ Failed to copy files"; exit 1; }
@@ -182,8 +194,30 @@ jobs:
           echo "  space_looter.js: $([ -f space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
           echo "  space_looter_bg.wasm: $([ -f space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+
+          # Detailed WASM file verification
           if [ -f space_looter_bg.wasm ]; then
-            echo "  WASM file size: $(du -h space_looter_bg.wasm | cut -f1)"
+            echo "🔍 WASM file details:"
+            echo "  Size: $(du -h space_looter_bg.wasm | cut -f1)"
+            echo "  Size (bytes): $(wc -c < space_looter_bg.wasm)"
+            echo "  Modified: $(stat -c %y space_looter_bg.wasm)"
+            echo "  MD5: $(md5sum space_looter_bg.wasm | cut -d' ' -f1)"
+          else
+            echo "❌ WASM file missing!"
+          fi
+
+          # Compare with temporary storage
+          if [ -f /tmp/deploy-files/space_looter_bg.wasm ]; then
+            echo "🔍 Comparing WASM files:"
+            echo "  Temp file size: $(du -h /tmp/deploy-files/space_looter_bg.wasm | cut -f1)"
+            echo "  Temp file MD5: $(md5sum /tmp/deploy-files/space_looter_bg.wasm | cut -d' ' -f1)"
+            if [ -f space_looter_bg.wasm ]; then
+              if cmp -s space_looter_bg.wasm /tmp/deploy-files/space_looter_bg.wasm; then
+                echo "  ✅ WASM files match"
+              else
+                echo "  ❌ WASM files differ!"
+              fi
+            fi
           fi
 
           # Verify all critical files are present
