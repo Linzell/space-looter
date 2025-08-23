@@ -1,0 +1,62 @@
+[build]
+# No build command - files are pre-built by GitHub Actions
+# This configuration assumes Netlify is connected to the 'deploy' branch
+# which contains the pre-built game files
+publish = "."
+command = ""
+# No ignore needed - always deploy from deploy branch
+
+# Skip build processing since files are already built
+[build.processing]
+skip_processing = true
+
+# Headers for WASM and security
+[[headers]]
+for = "/*"
+[headers.values]
+Cross-Origin-Embedder-Policy = "require-corp"
+Cross-Origin-Opener-Policy = "same-origin"
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+
+# WASM MIME type
+[[headers]]
+for = "*.wasm"
+[headers.values]
+Content-Type = "application/wasm"
+Cache-Control = "public, max-age=31536000, immutable"
+
+# JavaScript files caching
+[[headers]]
+for = "*.js"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML files
+[[headers]]
+for = "*.html"
+[headers.values]
+Cache-Control = "public, max-age=0, must-revalidate"
+
+# Production deployment (from deploy branch)
+[context.production]
+publish = "."
+command = ""
+
+# Branch deploys (only from deploy branch)
+[context.deploy-preview]
+publish = "."
+command = ""
+
+# Deploy previews for the deploy branch
+[context.branch-deploy]
+publish = "."
+command = ""
+
+# Environment variables for different contexts
+[context.production.environment]
+NODE_ENV = "production"
+
+[context.deploy-preview.environment]
+NODE_ENV = "preview"
