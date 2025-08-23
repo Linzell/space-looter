@@ -42,32 +42,32 @@ jobs:
           echo "📊 Build statistics:"
           du -h dist/*
 
-      - name: Create clean deploy branch
+      - name: Prepare deployment files
         run: |
-          echo "🧹 Creating clean deploy branch..."
+          echo "🧹 Preparing deployment files..."
 
-          # Create a temporary directory for deploy files
-          mkdir -p temp-deploy
-          cd temp-deploy
+          # Create a temporary directory for deploy files in main repo
+          mkdir -p deploy-staging
 
           # Copy built files from dist
           echo "📁 Copying built files..."
-          cp -r ../dist/* .
+          cp -r dist/* deploy-staging/
 
           # Copy Netlify configuration files
           echo "⚙️ Copying configuration files..."
-          cp ../netlify.toml .
-          cp ../netlify-build.sh .
+          cp netlify.toml deploy-staging/
+          cp netlify-build.sh deploy-staging/
 
           # Copy additional configuration files
-          cp ../README.md .
-          cp ../.gitignore .
+          cp README.md deploy-staging/
+          cp .gitignore deploy-staging/
 
           # Make netlify build script executable
-          chmod +x netlify-build.sh
+          chmod +x deploy-staging/netlify-build.sh
 
           # Create deployment info
           echo "📝 Creating deployment documentation..."
+          cd deploy-staging
           echo "# Space Looter Deployment" > DEPLOYMENT.md
           echo "" >> DEPLOYMENT.md
           echo "**Version:** ${{ github.ref_name }}" >> DEPLOYMENT.md
@@ -91,8 +91,9 @@ jobs:
           echo "\`\`\`" >> DEPLOYMENT.md
           ls -la >> DEPLOYMENT.md
           echo "\`\`\`" >> DEPLOYMENT.md
+          cd ..
 
-          echo "✅ Deploy files prepared"
+          echo "✅ Deploy files prepared in deploy-staging/"
 
       - name: Deploy to deploy branch
         run: |
@@ -117,10 +118,16 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy files from temp-deploy to current directory
+          # Copy files from deploy-staging to current directory
           echo "📁 Copying deployment files..."
-          cp -r temp-deploy/* . 2>/dev/null || true
-          cp -r temp-deploy/.[!.]* . 2>/dev/null || true
+          if [ -d "deploy-staging" ]; then
+            cp -r deploy-staging/* . 2>/dev/null || true
+            cp -r deploy-staging/.[!.]* . 2>/dev/null || true
+          else
+            echo "❌ deploy-staging directory not found"
+            ls -la
+            exit 1
+          fi
 
           # Add all files
           git add .
