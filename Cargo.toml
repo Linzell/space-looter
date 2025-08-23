@@ -1,0 +1,100 @@
+[package]
+name = "space-looter"
+version = "0.2.0"
+edition = "2021"
+description = "A 3D isometric space exploration RPG with dice-based mechanics"
+authors = ["Space Looter Team"]
+license = "MIT"
+repository = "https://github.com/your-username/space-looter"
+keywords = ["game", "rpg", "dice", "3d", "isometric", "space", "exploration"]
+categories = ["games"]
+
+[[bin]]
+name = "space-looter"
+path = "src/main.rs"
+
+[lib]
+name = "space_looter"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Core game engine with 3D support and audio
+bevy = { version = "0.16.1", features = [
+    "default",
+    "webgl2",
+    "vorbis",
+    "wav",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_audio",
+    "x11",
+] }
+
+# RPG mechanics and data handling
+chrono = { version = "0.4", features = ["serde", "wasm-bindgen"] }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+thiserror = "1.0"
+once_cell = "1.19"
+
+# Dice rolling and procedural generation
+rand = { version = "0.8", features = ["getrandom"] }
+getrandom = { version = "0.2", features = ["js"] }
+fastrand = "2.0"
+noise = "0.9"
+
+# Web-specific dependencies (only for WASM builds)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "WebGl2RenderingContext",
+    "WebGlRenderingContext",
+    "Performance",
+    "Navigator",
+    "HtmlElement",
+    "CssStyleDeclaration",
+    "CanvasRenderingContext2d",
+    "ImageData",
+    "AudioContext",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "GainNode",
+    "AudioDestinationNode",
+    "DomTokenList",
+] }
+
+wasm-bindgen = "=0.2.100"
+js-sys = "=0.3.77"
+console_error_panic_hook = "0.1"
+wasm-logger = "0.2"
+wasm-bindgen-futures = "=0.4.50"
+
+# Features
+[features]
+default = []
+
+# Optimizations for release builds - simplified for wasm-bindgen compatibility
+[profile.release]
+lto = false
+codegen-units = 16
+panic = "abort"
+opt-level = 2
+
+# Development profile for faster builds
+[profile.dev]
+opt-level = 1
+
+# WASM release profile for smaller binaries
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1

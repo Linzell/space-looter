@@ -1,0 +1,63 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --version 0.13.1 --force
+
+      - name: Build
+        run: |
+          chmod +x build-web.sh
+          ./build-web.sh
+
+      - name: Deploy to deploy branch
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and checkout deploy branch
+          git fetch origin
+          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+            git checkout deploy
+            git reset --hard HEAD
+          else
+            git checkout --orphan deploy
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Copy everything from main
+          git checkout ${{ github.ref_name }} -- .
+
+          # Add all files and commit
+          git add .
+          git commit -m "Deploy ${{ github.ref_name }}"
+          git push origin deploy
+
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Netlify will auto-deploy from deploy branch**" >> $GITHUB_STEP_SUMMARY

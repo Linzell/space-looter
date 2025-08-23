@@ -1,0 +1,143 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches-ignore: [deploy]
+  pull_request:
+    branches-ignore: [deploy]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
+        with:
+          rust-components: "rustfmt,clippy"
+          cache-key-suffix: "test"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --no-default-features
+
+      - name: Check documentation
+        run: cargo doc --no-deps --document-private-items
+
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
+        with:
+          rust-targets: "wasm32-unknown-unknown"
+          cache-key-suffix: "build"
+
+      - name: Build native version
+        run: cargo build --release --no-default-features
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "latest"
+
+      - name: Build WASM version
+        run: |
+          wasm-pack build \
+            --target web \
+            --out-dir pkg \
+            --release \
+            --no-typescript \
+            --no-opt
+
+      - name: Verify build artifacts
+        run: |
+          echo "Native build:"
+          ls -la target/release/
+          echo ""
+          echo "WASM build:"
+          ls -la pkg/
+          echo ""
+          echo "Build verification complete ✅"
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-system-deps
+        with:
+          cache-key-suffix: "audit"
+
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit &> /dev/null; then
+            cargo install cargo-audit
+          else
+            echo "cargo-audit already installed"
+          fi
+
+      - name: Run security audit
+        run: cargo audit
+
+  status-check:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [test, build-check, security-audit]
+    if: always()
+
+    steps:
+      - name: Check CI results
+        run: |
+          echo "## 🔍 CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.test.result }}" == "success" ]]; then
+            echo "✅ **Tests**: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.build-check.result }}" == "success" ]]; then
+            echo "✅ **Build**: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.security-audit.result }}" == "success" ]]; then
+            echo "✅ **Security**: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quality Gates" >> $GITHUB_STEP_SUMMARY
+          echo "- Code formatting (rustfmt)" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting (clippy)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests" >> $GITHUB_STEP_SUMMARY
+          echo "- Native build verification" >> $GITHUB_STEP_SUMMARY
+          echo "- WASM build verification" >> $GITHUB_STEP_SUMMARY
+          echo "- Security audit" >> $GITHUB_STEP_SUMMARY
+          echo "- Documentation generation" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if any job failed
+        if: needs.test.result != 'success' || needs.build-check.result != 'success' || needs.security-audit.result != 'success'
+        run: exit 1
