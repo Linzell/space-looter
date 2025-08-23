@@ -20,24 +20,26 @@ X-Frame-Options = "SAMEORIGIN"
 X-Content-Type-Options = "nosniff"
 Referrer-Policy = "strict-origin-when-cross-origin"
 
-# WASM MIME type
+# WASM MIME type - reduced caching for cache-busted files
 [[headers]]
 for = "*.wasm"
 [headers.values]
 Content-Type = "application/wasm"
-Cache-Control = "public, max-age=31536000, immutable"
+Cache-Control = "public, max-age=3600"
 
-# JavaScript files caching
+# JavaScript files caching - reduced for cache-busted files
 [[headers]]
 for = "*.js"
 [headers.values]
-Cache-Control = "public, max-age=31536000, immutable"
+Cache-Control = "public, max-age=3600"
 
-# HTML files
+# HTML files - no caching to ensure latest references
 [[headers]]
 for = "*.html"
 [headers.values]
-Cache-Control = "public, max-age=0, must-revalidate"
+Cache-Control = "no-cache, no-store, must-revalidate"
+Pragma = "no-cache"
+Expires = "0"
 
 # Production deployment (from deploy branch)
 [context.production]
