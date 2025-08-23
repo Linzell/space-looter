@@ -72,38 +72,73 @@ jobs:
           echo "🔍 Final dist directory check before staging:"
           ls -la dist/
 
-      - name: Prepare deployment files
+      - name: Prepare for deployment
         run: |
-          echo "🧹 Preparing deployment files..."
+          echo "🧹 Preparing for deployment..."
 
-          # Create a temporary directory for deploy files in main repo
-          mkdir -p deploy-staging
+          # Verify source files exist before deployment
+          echo "🔍 Verifying source files..."
+          echo "Contents of dist directory:"
+          ls -la dist/
+
+          echo "🔍 Critical files check:"
+          echo "  index.html: $([ -f dist/index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter.js: $([ -f dist/space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  space_looter_bg.wasm: $([ -f dist/space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+          echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+
+          if [ ! -f "dist/index.html" ] || [ ! -f "dist/space_looter.js" ] || [ ! -f "dist/space_looter_bg.wasm" ]; then
+            echo "❌ ERROR: Critical files missing from dist directory"
+            exit 1
+          fi
+
+          echo "✅ All source files verified"
+
+      - name: Deploy to deploy branch
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch all branches to get deploy branch
+          git fetch origin
+
+          # Check if deploy branch exists
+          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+            echo "📥 Deploy branch exists, checking it out..."
+            git checkout deploy
+
+            # Clean existing files (preserve .git)
+            find . -maxdepth 1 -not -name '.git' -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
+          else
+            echo "🆕 Creating new orphan deploy branch..."
+            git checkout --orphan deploy
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Store reference to original working directory
+          ORIGINAL_DIR="${GITHUB_WORKSPACE}"
+          echo "📍 Original directory: $ORIGINAL_DIR"
+
+          # Copy files directly from dist and root
+          echo "📁 Copying deployment files directly..."
 
           # Copy built files from dist
-          echo "📁 Copying built files..."
-          echo "🔍 Source dist directory contents:"
-          ls -la dist/
-          cp -r dist/* deploy-staging/
-          echo "✅ Built files copied to staging"
+          echo "🔍 Copying built files from dist..."
+          cp -r "${ORIGINAL_DIR}/dist"/* . && echo "✅ Built files copied" || { echo "❌ Failed to copy from dist"; exit 1; }
 
-          # Copy Netlify configuration files
-          echo "⚙️ Copying configuration files..."
-          cp netlify.toml deploy-staging/ && echo "✅ netlify.toml copied" || echo "❌ netlify.toml failed"
-          cp netlify-build.sh deploy-staging/ && echo "✅ netlify-build.sh copied" || echo "❌ netlify-build.sh failed"
-
-          # Copy additional configuration files
-          cp README.md deploy-staging/ && echo "✅ README.md copied" || echo "❌ README.md failed"
-          cp .gitignore deploy-staging/ && echo "✅ .gitignore copied" || echo "❌ .gitignore failed"
-
-          # Skip .github directory to avoid interfering with running workflow
-          echo "⚠️  Skipping .github directory to avoid workflow interference"
+          # Copy configuration files from root
+          echo "🔍 Copying configuration files..."
+          cp "${ORIGINAL_DIR}/netlify.toml" . && echo "✅ netlify.toml copied" || echo "❌ netlify.toml failed"
+          cp "${ORIGINAL_DIR}/netlify-build.sh" . && echo "✅ netlify-build.sh copied" || echo "❌ netlify-build.sh failed"
+          cp "${ORIGINAL_DIR}/README.md" . && echo "✅ README.md copied" || echo "❌ README.md failed"
+          cp "${ORIGINAL_DIR}/.gitignore" . && echo "✅ .gitignore copied" || echo "❌ .gitignore failed"
 
           # Make netlify build script executable
-          chmod +x deploy-staging/netlify-build.sh
+          chmod +x netlify-build.sh 2>/dev/null || echo "⚠️ netlify-build.sh not found or already executable"
 
           # Create deployment info
           echo "📝 Creating deployment documentation..."
-          cd deploy-staging
           echo "# Space Looter Deployment" > DEPLOYMENT.md
           echo "" >> DEPLOYMENT.md
           echo "**Version:** ${{ github.ref_name }}" >> DEPLOYMENT.md
@@ -127,66 +162,6 @@ jobs:
           echo "\`\`\`" >> DEPLOYMENT.md
           ls -la >> DEPLOYMENT.md
           echo "\`\`\`" >> DEPLOYMENT.md
-          cd ..
-
-          echo "✅ Deploy files prepared in deploy-staging/"
-
-          # Debug: Show what was actually created in staging
-          echo "🔍 Contents of deploy-staging directory:"
-          ls -la deploy-staging/
-          echo ""
-          echo "🔍 Checking staging directory size:"
-          du -sh deploy-staging/
-          echo ""
-          echo "🔍 Critical files in staging:"
-          echo "  index.html: $([ -f deploy-staging/index.html ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter.js: $([ -f deploy-staging/space_looter.js ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-          echo "  space_looter_bg.wasm: $([ -f deploy-staging/space_looter_bg.wasm ] && echo "✅ EXISTS" || echo "❌ MISSING")"
-
-      - name: Deploy to deploy branch
-        run: |
-          # Store the absolute path to deploy-staging BEFORE any git operations
-          STAGING_DIR="$(pwd)/deploy-staging"
-          echo "📍 Staging directory: $STAGING_DIR"
-
-          # Verify staging directory exists
-          if [ ! -d "$STAGING_DIR" ]; then
-            echo "❌ deploy-staging directory not found at $STAGING_DIR"
-            ls -la
-            exit 1
-          fi
-
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Fetch all branches to get deploy branch
-          git fetch origin
-
-          # Check if deploy branch exists
-          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
-            echo "📥 Deploy branch exists, checking it out..."
-            git checkout deploy
-
-            # Clean existing files (preserve .git)
-            find . -maxdepth 1 -not -name '.git' -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
-          else
-            echo "🆕 Creating new orphan deploy branch..."
-            git checkout --orphan deploy
-            git rm -rf . 2>/dev/null || true
-          fi
-
-          # Copy files from staging directory to current directory
-          echo "📁 Copying deployment files from $STAGING_DIR..."
-          if [ "$(ls -A "$STAGING_DIR" 2>/dev/null)" ]; then
-            cp -r "$STAGING_DIR"/* . 2>/dev/null && echo "✅ Visible files copied" || echo "⚠️  No visible files to copy"
-            cp -r "$STAGING_DIR"/.[!.]* . 2>/dev/null && echo "✅ Hidden files copied" || echo "⚠️  No hidden files to copy"
-          else
-            echo "❌ ERROR: Staging directory is empty!"
-            echo "Staging directory contents:"
-            ls -la "$STAGING_DIR" || echo "Cannot list staging directory"
-            exit 1
-          fi
 
           # Debug: Show what files are actually in the deploy branch
           echo "🔍 Files in deploy branch after copy:"
@@ -199,6 +174,14 @@ jobs:
           echo "  netlify.toml: $([ -f netlify.toml ] && echo "✅ EXISTS" || echo "❌ MISSING")"
           if [ -f space_looter_bg.wasm ]; then
             echo "  WASM file size: $(du -h space_looter_bg.wasm | cut -f1)"
+          fi
+
+          # Verify all critical files are present
+          if [ ! -f index.html ] || [ ! -f space_looter.js ] || [ ! -f space_looter_bg.wasm ]; then
+            echo "❌ ERROR: Critical files missing after copy!"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
           fi
 
           # Add all files
