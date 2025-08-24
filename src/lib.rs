@@ -366,6 +366,11 @@ pub fn rpg_exploration_system(
     resting_service: Res<domain::services::RestingService>,
     mut movement_events: EventReader<crate::presentation::movement::ExecuteRpgMovement>,
     mut movement_completed_events: EventReader<crate::presentation::movement::MovementCompleted>,
+    mut resting_events: EventReader<crate::presentation::movement::RestingTriggered>,
+    mut player_query: Query<
+        (&mut crate::presentation::movement::SmoothMovement, Entity),
+        With<crate::presentation::map_renderer::PlayerMarker>,
+    >,
     mut pending_movement: Local<Option<domain::Position3D>>,
     mut pending_rpg_results: Local<
         Vec<(
@@ -398,6 +403,66 @@ pub fn rpg_exploration_system(
         } else {
             // Still resting, block all movement
             return;
+        }
+    }
+
+    // Handle resting events (when movement points reach zero)
+    for resting_event in resting_events.read() {
+        if let Some(mut player) = player_resource.get_player_mut() {
+            info!(
+                "😴 Processing automatic rest at {:?}",
+                resting_event.player_position
+            );
+
+            // Process rest cycle using the resting service
+            match resting_service.process_rest_cycle(&mut player, resting_event.player_position) {
+                Ok(rest_result) => {
+                    info!("🌅 Rest completed: {}", rest_result.description);
+                    info!(
+                        "⚡ Movement points restored: {} (was {})",
+                        rest_result.movement_points_restored,
+                        resting_event.remaining_movement_points
+                    );
+
+                    // Log the rest result
+                    game_log.log_message(rest_result.description, crate::GameLogType::Rest);
+
+                    // Add resources gained message if any
+                    if !rest_result.resources_gained.is_empty() {
+                        let resource_types: Vec<String> = rest_result
+                            .resources_gained
+                            .amounts()
+                            .iter()
+                            .map(|amount| format!("{} {}", amount.amount, amount.resource_type))
+                            .collect();
+                        let resource_msg =
+                            format!("Resources gained: {}", resource_types.join(", "));
+                        game_log.log_message(resource_msg, crate::GameLogType::Resources);
+                    }
+
+                    // Play rest complete audio
+                    if let Some(audio_assets) = &audio_assets {
+                        if let Some(rest_handle) = &audio_assets.rest_complete {
+                            commands.spawn(AudioPlayer::new(rest_handle.clone()));
+                        }
+                    }
+
+                    // Update game stats
+                    if rest_result.resources_gained.total_value() > 0 {
+                        // Record resource gathering for each resource type gained
+                        for amount in rest_result.resources_gained.amounts() {
+                            game_stats.record_resource_gather(amount.resource_type, amount.amount);
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to process rest cycle: {:?}", e);
+                    game_log.log_message(
+                        "Rest failed - something went wrong during the night".to_string(),
+                        crate::GameLogType::Warning,
+                    );
+                }
+            }
         }
     }
 
@@ -481,9 +546,47 @@ pub fn rpg_exploration_system(
                         movement_result.dice_result.outcome_category()
                     );
 
-                    info!("🚀 Attempting to move player to: {:?}", target_position);
-                    let current_pos_before = player_resource.player_position();
-                    info!("📍 Player position before move: {:?}", current_pos_before);
+                    info!(
+                        "🚀 Movement validation successful to: {:?} (cost: {})",
+                        target_position, movement_result.movement_cost
+                    );
+
+                    // Update animation duration based on movement cost and terrain type
+                    if let Ok((mut smooth_movement, _)) = player_query.single_mut() {
+                        use crate::domain::constants::*;
+
+                        // Get terrain type from the target position
+                        let terrain_multiplier = if let Some(map) = map_resource.current_map() {
+                            let tile_coord = crate::domain::value_objects::TileCoordinate::new(
+                                target_position.x,
+                                target_position.y,
+                                target_position.z,
+                            );
+                            if let Some(tile) = map.get_tile(&tile_coord) {
+                                get_terrain_duration_multiplier(tile.terrain_type)
+                            } else {
+                                1.0 // Default multiplier if no tile found
+                            }
+                        } else {
+                            1.0 // Default multiplier if no map
+                        };
+
+                        // Calculate base duration from movement cost
+                        let base_duration_ms = BASE_MOVEMENT_ANIMATION_DURATION_MS
+                            + (movement_result.movement_cost as f32
+                                * DURATION_PER_MOVEMENT_POINT_MS);
+
+                        // Apply terrain multiplier
+                        let duration_ms = (base_duration_ms * terrain_multiplier)
+                            .min(MAX_MOVEMENT_ANIMATION_DURATION_MS);
+
+                        info!(
+                            "🎮 Updating animation duration to {}ms (cost: {}, terrain multiplier: {:.1}x)",
+                            duration_ms, movement_result.movement_cost, terrain_multiplier
+                        );
+                        smooth_movement.duration =
+                            std::time::Duration::from_millis(duration_ms as u64);
+                    }
 
                     // Store the movement result to be applied when animation completes
                     info!("🎮 RPG System: Storing movement result for delayed execution");
@@ -497,6 +600,7 @@ pub fn rpg_exploration_system(
                 Err(e) => {
                     warn!("❌ Movement failed: {}", e);
 
+                    // This should rarely happen now due to pre-validation
                     // Play blocked movement audio
                     if let Some(audio_assets) = &audio_assets {
                         if let Some(ui_handle) = &audio_assets.ui_click {

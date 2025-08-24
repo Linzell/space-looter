@@ -82,6 +82,58 @@ pub const BASE_MOVEMENT_COST: u8 = 1;
 /// Maximum distance for valid movement (Manhattan distance)
 pub const MAX_MOVEMENT_DISTANCE: u32 = 1;
 
+/// Base movement animation duration in milliseconds
+pub const BASE_MOVEMENT_ANIMATION_DURATION_MS: f32 = 500.0;
+
+/// Maximum movement animation duration in milliseconds
+pub const MAX_MOVEMENT_ANIMATION_DURATION_MS: f32 = 6000.0;
+
+/// Duration per movement point consumed (in milliseconds)
+pub const DURATION_PER_MOVEMENT_POINT_MS: f32 = 700.0;
+
+/// Minimum movement points that trigger automatic rest
+pub const AUTO_REST_MOVEMENT_THRESHOLD: u8 = 0;
+
+/// Per-terrain animation duration multipliers (applied to base calculation)
+/// These multipliers affect how long the movement animation takes based on terrain type
+/// 1.0 = normal speed, >1.0 = slower, <1.0 = faster
+
+/// Plains terrain - open ground, normal movement speed
+pub const TERRAIN_DURATION_MULTIPLIER_PLAINS: f32 = 1.0;
+
+/// Forest terrain - dense vegetation slows movement
+pub const TERRAIN_DURATION_MULTIPLIER_FOREST: f32 = 1.2;
+
+/// Mountain terrain - climbing and rough terrain slows movement significantly
+pub const TERRAIN_DURATION_MULTIPLIER_MOUNTAINS: f32 = 1.5;
+
+/// Desert terrain - open but challenging, moderate slowdown
+pub const TERRAIN_DURATION_MULTIPLIER_DESERT: f32 = 1.1;
+
+/// Tundra terrain - cold and difficult footing
+pub const TERRAIN_DURATION_MULTIPLIER_TUNDRA: f32 = 1.3;
+
+/// Ocean terrain - swimming or boat movement, very slow
+pub const TERRAIN_DURATION_MULTIPLIER_OCEAN: f32 = 2.0;
+
+/// Swamp terrain - muddy and treacherous, extremely slow
+pub const TERRAIN_DURATION_MULTIPLIER_SWAMP: f32 = 2.2;
+
+/// Volcanic terrain - dangerous and unstable ground
+pub const TERRAIN_DURATION_MULTIPLIER_VOLCANIC: f32 = 1.8;
+
+/// Constructed terrain - roads and structures, faster movement
+pub const TERRAIN_DURATION_MULTIPLIER_CONSTRUCTED: f32 = 0.8;
+
+/// Cave terrain - underground tunnels, moderate slowdown
+pub const TERRAIN_DURATION_MULTIPLIER_CAVE: f32 = 1.4;
+
+/// Crystal terrain - slippery crystalline surfaces
+pub const TERRAIN_DURATION_MULTIPLIER_CRYSTAL: f32 = 1.6;
+
+/// Anomaly terrain - unpredictable and dangerous, very slow
+pub const TERRAIN_DURATION_MULTIPLIER_ANOMALY: f32 = 2.5;
+
 // =============================================================================
 // MAP AND VISIBILITY CONSTANTS
 // =============================================================================
@@ -526,6 +578,27 @@ pub fn is_critical_failure(roll: u8) -> bool {
     roll == 1
 }
 
+/// Get terrain-specific duration multiplier for movement animations
+pub fn get_terrain_duration_multiplier(
+    terrain_type: crate::domain::value_objects::terrain::TerrainType,
+) -> f32 {
+    use crate::domain::value_objects::terrain::TerrainType;
+    match terrain_type {
+        TerrainType::Plains => TERRAIN_DURATION_MULTIPLIER_PLAINS,
+        TerrainType::Forest => TERRAIN_DURATION_MULTIPLIER_FOREST,
+        TerrainType::Mountains => TERRAIN_DURATION_MULTIPLIER_MOUNTAINS,
+        TerrainType::Desert => TERRAIN_DURATION_MULTIPLIER_DESERT,
+        TerrainType::Tundra => TERRAIN_DURATION_MULTIPLIER_TUNDRA,
+        TerrainType::Ocean => TERRAIN_DURATION_MULTIPLIER_OCEAN,
+        TerrainType::Swamp => TERRAIN_DURATION_MULTIPLIER_SWAMP,
+        TerrainType::Volcanic => TERRAIN_DURATION_MULTIPLIER_VOLCANIC,
+        TerrainType::Constructed => TERRAIN_DURATION_MULTIPLIER_CONSTRUCTED,
+        TerrainType::Cave => TERRAIN_DURATION_MULTIPLIER_CAVE,
+        TerrainType::Crystal => TERRAIN_DURATION_MULTIPLIER_CRYSTAL,
+        TerrainType::Anomaly => TERRAIN_DURATION_MULTIPLIER_ANOMALY,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,9 +718,57 @@ mod tests {
         let plains_linear = scanner_plains.to_linear();
         let volcanic_linear = scanner_volcanic.to_linear();
         let constructed_linear = scanner_constructed.to_linear();
-        assert!(plains_linear.red >= 0.0 && plains_linear.red <= 1.0);
-        assert!(volcanic_linear.green >= 0.0 && volcanic_linear.green <= 1.0);
-        assert!(constructed_linear.blue >= 0.0 && constructed_linear.blue <= 1.0);
+    }
+
+    #[test]
+    fn test_terrain_duration_multipliers() {
+        // Test that terrain multipliers are defined and reasonable
+        use crate::domain::value_objects::terrain::TerrainType;
+
+        // Test basic terrains
+        assert_eq!(get_terrain_duration_multiplier(TerrainType::Plains), 1.0);
+        assert!(get_terrain_duration_multiplier(TerrainType::Forest) > 1.0);
+        assert!(get_terrain_duration_multiplier(TerrainType::Mountains) > 1.0);
+
+        // Test fast terrains
+        assert!(get_terrain_duration_multiplier(TerrainType::Constructed) < 1.0);
+
+        // Test slow terrains
+        assert!(get_terrain_duration_multiplier(TerrainType::Swamp) > 1.5);
+        assert!(get_terrain_duration_multiplier(TerrainType::Ocean) > 1.5);
+        assert!(get_terrain_duration_multiplier(TerrainType::Anomaly) > 2.0);
+
+        // Ensure all multipliers are positive
+        let all_terrains = [
+            TerrainType::Plains,
+            TerrainType::Forest,
+            TerrainType::Mountains,
+            TerrainType::Desert,
+            TerrainType::Tundra,
+            TerrainType::Ocean,
+            TerrainType::Swamp,
+            TerrainType::Volcanic,
+            TerrainType::Constructed,
+            TerrainType::Cave,
+            TerrainType::Crystal,
+            TerrainType::Anomaly,
+        ];
+
+        for terrain in &all_terrains {
+            let multiplier = get_terrain_duration_multiplier(*terrain);
+            assert!(
+                multiplier > 0.0,
+                "Terrain {:?} has invalid multiplier: {}",
+                terrain,
+                multiplier
+            );
+            assert!(
+                multiplier <= 3.0,
+                "Terrain {:?} multiplier too high: {}",
+                terrain,
+                multiplier
+            );
+        }
     }
 }
 

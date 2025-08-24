@@ -86,6 +86,21 @@ impl PlayerResource {
     pub fn get_player_mut(&mut self) -> Option<&mut Player> {
         self.player_mut()
     }
+
+    /// Subtract movement points from player
+    pub fn subtract_movement_points(
+        &mut self,
+        points: u8,
+    ) -> Result<(), crate::domain::DomainError> {
+        if let Some(player) = &mut self.player {
+            player.subtract_movement_points(points);
+            Ok(())
+        } else {
+            Err(crate::domain::DomainError::PlayerError(
+                "No player exists".to_string(),
+            ))
+        }
+    }
 }
 
 impl Default for PlayerResource {

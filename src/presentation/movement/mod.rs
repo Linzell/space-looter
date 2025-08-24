@@ -104,7 +104,13 @@ impl Plugin for SmoothMovementPlugin {
         .add_event::<MovementCompleted>()
         .add_event::<ExecuteRpgMovement>()
         .add_event::<TileClickEvent>()
-        .init_resource::<MovementConfig>();
+        .add_event::<RestingTriggered>()
+        .init_resource::<MovementConfig>()
+        .add_systems(
+            Update,
+            check_for_zero_movement_points
+                .run_if(any_with_component::<crate::presentation::map_renderer::PlayerMarker>),
+        );
     }
 }
 
@@ -215,6 +221,30 @@ impl SmoothMovement {
         }
     }
 
+    /// Start movement to new position with custom duration
+    pub fn start_movement_with_duration(&mut self, target: Position3D, duration_seconds: f32) {
+        if self.is_moving {
+            return; // Don't interrupt current movement
+        }
+
+        self.start_position = self.target_position;
+        self.target_position = target;
+        self.is_moving = true;
+        self.progress = 0.0;
+        self.elapsed = Duration::ZERO;
+        self.duration = Duration::from_millis((duration_seconds * 1000.0) as u64);
+    }
+
+    /// Reset to a specific position (used when movement fails)
+    pub fn reset_to_position(&mut self, position: Position3D) {
+        self.target_position = position;
+        self.start_position = position;
+        self.current_position = tile_to_world_position(position);
+        self.is_moving = false;
+        self.progress = 1.0;
+        self.elapsed = Duration::ZERO;
+    }
+
     /// Set movement speed multiplier
     pub fn set_speed_multiplier(&mut self, multiplier: f32) {
         self.speed_multiplier = multiplier.max(0.1); // Minimum speed
@@ -319,11 +349,18 @@ pub struct TileHighlight {
 }
 
 /// Types of tile highlights
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum HighlightType {
     Clickable,
     Invalid,
     Path,
+}
+
+/// Event triggered when player needs to rest (zero movement points)
+#[derive(Event, Debug)]
+pub struct RestingTriggered {
+    pub player_position: Position3D,
+    pub remaining_movement_points: u8,
 }
 
 /// System to update movement animations
@@ -361,10 +398,11 @@ pub fn handle_player_movement_input(
         (&mut SmoothMovement, Entity),
         With<crate::presentation::map_renderer::PlayerMarker>,
     >,
+    mut player_resource: ResMut<crate::infrastructure::bevy::resources::PlayerResource>,
+    map_resource: Res<crate::infrastructure::bevy::resources::MapResource>,
     config: Res<MovementConfig>,
     mut movement_started_events: EventWriter<MovementStarted>,
     mut execute_rpg_events: EventWriter<ExecuteRpgMovement>,
-    player_resource: Res<crate::infrastructure::bevy::resources::PlayerResource>,
 ) {
     if !player_resource.has_player() || !config.enable_keyboard_movement {
         return;
@@ -374,6 +412,13 @@ pub fn handle_player_movement_input(
     if let Ok((smooth_movement, _)) = player_query.single() {
         if config.block_input_during_movement && smooth_movement.is_moving {
             return; // Block input during movement
+        }
+    }
+
+    // Check if player has movement points
+    if let Some(player) = player_resource.get_player() {
+        if !player.can_move() {
+            return; // No movement points available
         }
     }
 
@@ -402,12 +447,39 @@ pub fn handle_player_movement_input(
             let current_tile = smooth_movement.target_position;
             let new_target = current_tile.move_direction(direction, 1);
 
+            // Pre-validate movement before starting animation
+            let current_position = player_resource.player_position().unwrap_or_default();
+            let map = map_resource.current_map();
+            let movement_cost = if let Some(map) = map {
+                map.movement_cost(&new_target)
+            } else {
+                crate::domain::constants::BASE_MOVEMENT_COST
+            };
+
+            // Check if player has enough movement points for this specific movement
+            if let Some(player) = player_resource.get_player() {
+                if player.movement_points() < movement_cost {
+                    info!(
+                        "⚡ Movement blocked! Need: {} points, Have: {}",
+                        movement_cost,
+                        player.movement_points()
+                    );
+                    return;
+                }
+            }
+
+            // Check basic adjacency (RPG system will do full validation)
+            if !is_adjacent_tile(current_tile, new_target) {
+                info!("🚫 Movement blocked! Target not adjacent to current position");
+                return;
+            }
+
             info!(
                 "🎮 Smooth movement: Starting animation from {:?} to {:?}",
                 current_tile, new_target
             );
 
-            // Start movement animation
+            // Start movement animation with default duration - will be updated after RPG validation
             smooth_movement.start_movement(new_target, &config);
 
             // Send movement started event
@@ -446,10 +518,11 @@ pub fn handle_click_movement_input(
         (&mut SmoothMovement, Entity),
         With<crate::presentation::map_renderer::PlayerMarker>,
     >,
+    mut player_resource: ResMut<crate::infrastructure::bevy::resources::PlayerResource>,
+    map_resource: Res<crate::infrastructure::bevy::resources::MapResource>,
     config: Res<MovementConfig>,
     mut movement_started_events: EventWriter<MovementStarted>,
     mut execute_rpg_events: EventWriter<ExecuteRpgMovement>,
-    player_resource: Res<crate::infrastructure::bevy::resources::PlayerResource>,
 ) {
     if !player_resource.has_player() || !config.enable_click_to_move {
         return;
@@ -459,6 +532,13 @@ pub fn handle_click_movement_input(
     if let Ok((smooth_movement, _)) = player_query.single() {
         if config.block_input_during_movement && smooth_movement.is_moving {
             return; // Block input during movement
+        }
+    }
+
+    // Check if player has movement points
+    if let Some(player) = player_resource.get_player() {
+        if !player.can_move() {
+            return; // No movement points available
         }
     }
 
@@ -495,38 +575,59 @@ pub fn handle_click_movement_input(
 
                     // Check if movement is allowed (adjacent for cardinal, or diagonal if enabled)
                     if is_valid_click_movement(current_tile, clicked_tile, &config) {
-                        // Calculate direction
-                        if let Some(direction) = calculate_direction(current_tile, clicked_tile) {
-                            info!("📱 ✅ Moving to adjacent tile: {:?}", clicked_tile);
-                            info!(
-                                "🎮 Click movement: Starting animation from {:?} to {:?}",
-                                current_tile, clicked_tile
-                            );
+                        // Pre-validate movement before starting animation
+                        let current_position =
+                            player_resource.player_position().unwrap_or_default();
+                        let map = map_resource.current_map();
+                        let movement_cost = if let Some(map) = map {
+                            map.movement_cost(&clicked_tile)
+                        } else {
+                            crate::domain::constants::BASE_MOVEMENT_COST
+                        };
 
-                            // Start movement animation
-                            smooth_movement.start_movement(clicked_tile, &config);
-
-                            // Send movement started event
-                            movement_started_events.write(MovementStarted {
-                                entity,
-                                from: current_tile,
-                                to: clicked_tile,
-                            });
-
-                            // Send RPG movement event immediately
-                            execute_rpg_events.write(ExecuteRpgMovement {
-                                direction,
-                                target_position: clicked_tile,
-                                entity,
-                            });
-
-                            info!(
-                                "🎮 Click movement: Sent RPG movement event for {:?}",
-                                clicked_tile
-                            );
+                        // Check if player has enough movement points for this specific movement
+                        if let Some(player) = player_resource.get_player() {
+                            if player.movement_points() < movement_cost {
+                                info!(
+                                    "⚡ Click movement blocked! Need: {} points, Have: {}",
+                                    movement_cost,
+                                    player.movement_points()
+                                );
+                                return;
+                            }
                         }
+
+                        let direction = calculate_direction(current_tile, clicked_tile)
+                            .unwrap_or(Direction::North);
+
+                        info!(
+                            "🖱️ Click movement: Starting animation from {:?} to {:?}",
+                            current_tile, clicked_tile
+                        );
+
+                        // Start movement animation with default duration - will be updated after RPG validation
+                        smooth_movement.start_movement(clicked_tile, &config);
+
+                        // Send movement started event
+                        movement_started_events.write(MovementStarted {
+                            entity,
+                            from: current_tile,
+                            to: clicked_tile,
+                        });
+
+                        // Send RPG movement event immediately
+                        execute_rpg_events.write(ExecuteRpgMovement {
+                            direction,
+                            target_position: clicked_tile,
+                            entity,
+                        });
+
+                        info!(
+                            "🖱️ Click movement: Sent RPG movement event for {:?}",
+                            clicked_tile
+                        );
                     } else {
-                        info!("📱 ❌ Cannot move to non-adjacent tile: {:?}", clicked_tile);
+                        info!("🖱️ Click movement blocked! Target not adjacent or not allowed");
                     }
                 }
             }
@@ -653,6 +754,33 @@ fn is_adjacent_tile(from: Position3D, to: Position3D) -> bool {
     match (dx, dy, dz) {
         (1, 0, 0) | (0, 1, 0) | (0, 0, 1) => true,
         _ => false,
+    }
+}
+
+/// System to check if player has zero movement points and trigger resting
+pub fn check_for_zero_movement_points(
+    player_resource: Res<crate::infrastructure::bevy::resources::PlayerResource>,
+    mut resting_events: EventWriter<RestingTriggered>,
+    mut already_triggered: Local<bool>,
+) {
+    if let Some(player) = player_resource.get_player() {
+        if player.movement_points() == 0 && !*already_triggered {
+            let current_position = player_resource.player_position().unwrap_or_default();
+
+            info!(
+                "⚡ Movement points exhausted! Triggering automatic rest at {:?}",
+                current_position
+            );
+
+            resting_events.write(RestingTriggered {
+                player_position: current_position,
+                remaining_movement_points: player.movement_points(),
+            });
+
+            *already_triggered = true;
+        } else if player.movement_points() > 0 {
+            *already_triggered = false;
+        }
     }
 }
 
