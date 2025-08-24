@@ -1,11 +1,11 @@
 {
-  "buildTimestamp": "1756045054",
-  "buildDate": "2025-08-24T14:17:34Z",
+  "buildTimestamp": "1756047158",
+  "buildDate": "2025-08-24T14:52:38Z",
   "wasmPackVersion": "wasm-pack 0.13.1",
   "rustcVersion": "rustc 1.89.0 (29483883e 2025-08-04)",
-  "jsFileHash": "1d5db4572584b2a50cb1c6c98014af99",
-  "wasmFileHash": "eef8318caca1951dc3c566904dc90246",
+  "jsFileHash": "eabef6913106fe2fcfc92a35ce21a81c",
+  "wasmFileHash": "9c85bc64abd9bc9dddaa2065e6b5d9b3",
   "jsFileSize": 103757,
-  "wasmFileSize": 39117086,
-  "cacheBreaker": "v=1756045054"
+  "wasmFileSize": 39147564,
+  "cacheBreaker": "v=1756047158"
 }
