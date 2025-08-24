@@ -3,6 +3,7 @@
 //! This module provides both 3D isometric visualization and console-based debugging
 //! of the game world, showing the tile grid, terrain types, and player position.
 
+use crate::domain::constants::get_terrain_render_color;
 use crate::domain::services::{MapService, TileCacheService, VisibilityLevel, VisibilityService};
 use crate::domain::value_objects::terrain::TerrainType;
 use crate::domain::value_objects::TileCoordinate;
@@ -25,7 +26,6 @@ impl Plugin for MapRendererPlugin {
                 mark_tiles_explored_system,
                 update_3d_map_system,
                 update_player_position_system,
-                update_console_map_system,
                 render_on_map_generation_system,
                 force_initial_render_system,
                 initial_map_render_system,
@@ -80,75 +80,75 @@ impl FromWorld for TerrainMaterials {
 
         Self {
             plains: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.4, 0.8, 0.3), // Green
+                base_color: get_terrain_render_color(TerrainType::Plains),
                 metallic: 0.0,
                 perceptual_roughness: 0.8,
                 ..default()
             }),
             forest: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.6, 0.2), // Dark green
+                base_color: get_terrain_render_color(TerrainType::Forest),
                 metallic: 0.0,
                 perceptual_roughness: 0.9,
                 ..default()
             }),
             mountains: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.6, 0.5, 0.4), // Gray-brown
+                base_color: get_terrain_render_color(TerrainType::Mountains),
                 metallic: 0.1,
                 perceptual_roughness: 0.7,
                 ..default()
             }),
             desert: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.9, 0.8, 0.5), // Sandy yellow
+                base_color: get_terrain_render_color(TerrainType::Desert),
                 metallic: 0.0,
                 perceptual_roughness: 0.6,
                 ..default()
             }),
             tundra: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.9, 1.0), // Icy blue
+                base_color: get_terrain_render_color(TerrainType::Tundra),
                 metallic: 0.2,
                 perceptual_roughness: 0.3,
                 ..default()
             }),
             ocean: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.4, 0.8), // Deep blue
+                base_color: get_terrain_render_color(TerrainType::Ocean),
                 metallic: 0.3,
                 perceptual_roughness: 0.1,
                 ..default()
             }),
             swamp: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.4, 0.5, 0.3), // Murky green
+                base_color: get_terrain_render_color(TerrainType::Swamp),
                 metallic: 0.0,
                 perceptual_roughness: 0.9,
                 ..default()
             }),
             volcanic: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.2, 0.1), // Red-orange
+                base_color: get_terrain_render_color(TerrainType::Volcanic),
                 metallic: 0.0,
                 perceptual_roughness: 0.8,
                 emissive: LinearRgba::new(0.3, 0.1, 0.0, 1.0),
                 ..default()
             }),
             constructed: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.5, 0.5, 0.6), // Metallic gray
+                base_color: get_terrain_render_color(TerrainType::Constructed),
                 metallic: 0.7,
                 perceptual_roughness: 0.2,
                 ..default()
             }),
             cave: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.3, 0.2, 0.2), // Dark brown
+                base_color: get_terrain_render_color(TerrainType::Cave),
                 metallic: 0.0,
                 perceptual_roughness: 0.9,
                 ..default()
             }),
             crystal: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.6, 1.0), // Purple crystal
+                base_color: get_terrain_render_color(TerrainType::Crystal),
                 metallic: 0.1,
                 perceptual_roughness: 0.0,
                 emissive: LinearRgba::new(0.2, 0.1, 0.3, 1.0),
                 ..default()
             }),
             anomaly: materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.0, 1.0), // Magenta
+                base_color: get_terrain_render_color(TerrainType::Anomaly),
                 metallic: 0.5,
                 perceptual_roughness: 0.3,
                 emissive: LinearRgba::new(0.5, 0.0, 0.5, 1.0),
@@ -257,11 +257,6 @@ fn setup_camera_following_system(
             // Log camera following (only once by checking if we need to update position significantly)
             let current_pos = camera_transform.translation;
             let player_pos = player_transform.translation;
-            let expected_pos = player_pos + Vec3::new(10.0, 15.0, 10.0);
-
-            if (current_pos - expected_pos).length() > 5.0 {
-                info!("📹 Camera now following player entity: {:?}", player_entity);
-            }
 
             // Position camera at isometric angle relative to player for proper centering
             let camera_offset = Vec3::new(10.0, 15.0, 10.0);
@@ -820,76 +815,6 @@ fn get_terrain_height_offset(terrain_type: TerrainType) -> f32 {
         TerrainType::Crystal => 0.4,
         TerrainType::Anomaly => 0.6,
     }
-}
-
-/// Update console map display when player moves (kept for debugging)
-fn update_console_map_system(map_resource: Res<MapResource>, player_resource: Res<PlayerResource>) {
-    // Only render occasionally to avoid spam
-    static mut LAST_POSITION: Option<(i32, i32)> = None;
-
-    if !map_resource.has_map() || !player_resource.has_player() {
-        return;
-    }
-
-    let player_position = player_resource.player_position().unwrap_or_default();
-    let current_pos = (player_position.x, player_position.y);
-
-    // Only render if player moved
-    unsafe {
-        if let Some(last_pos) = LAST_POSITION {
-            if last_pos == current_pos {
-                return;
-            }
-        }
-        LAST_POSITION = Some(current_pos);
-    }
-
-    let map = map_resource.current_map().unwrap();
-
-    // Render ASCII map around player (smaller for console)
-    let view_radius = 3;
-    println!(
-        "\n🗺️ Debug Map View (Player at {}, {}):",
-        player_position.x, player_position.y
-    );
-    println!("═══════════════════");
-
-    for dy in -view_radius..=view_radius {
-        print!("│");
-        for dx in -view_radius..=view_radius {
-            let grid_x = player_position.x + dx;
-            let grid_y = player_position.y + dy;
-
-            // Player position
-            if dx == 0 && dy == 0 {
-                print!("@");
-                continue;
-            }
-
-            let tile_coord = crate::domain::value_objects::TileCoordinate::new(
-                grid_x,
-                grid_y,
-                player_position.z,
-            );
-
-            if let Some(tile) = map.get_tile(&tile_coord) {
-                let visibility_service = VisibilityService::new();
-                let is_visible = visibility_service.is_tile_visible(player_position, tile_coord);
-
-                if tile.is_explored() && is_visible {
-                    print!("{}", get_terrain_symbol(tile.terrain_type));
-                } else {
-                    print!("░░"); // Unexplored or not visible
-                }
-            } else {
-                print!("██"); // Unknown/ungenerated
-            }
-        }
-        println!("│");
-    }
-
-    println!("═══════════════════");
-    println!("@=Player | ^=Mountains | T=Forest | .=Plains | ~=Desert");
 }
 
 /// Get symbol for terrain type (console debug only)

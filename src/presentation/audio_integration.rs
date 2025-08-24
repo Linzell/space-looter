@@ -218,15 +218,15 @@ fn monitor_audio_status(
             ("rest_complete", &audio_assets.rest_complete),
         ];
 
-        let mut loaded_count = 0;
+        let mut _loaded_count = 0;
         let mut failed_count = 0;
-        let mut loading_count = 0;
+        let mut _loading_count = 0;
 
         for (name, handle_opt) in assets_to_check.iter() {
             if let Some(handle) = handle_opt {
                 match asset_server.load_state(handle.id()) {
-                    bevy::asset::LoadState::Loaded => loaded_count += 1,
-                    bevy::asset::LoadState::Loading => loading_count += 1,
+                    bevy::asset::LoadState::Loaded => _loaded_count += 1,
+                    bevy::asset::LoadState::Loading => _loading_count += 1,
                     bevy::asset::LoadState::Failed(_) => {
                         failed_count += 1;
                         error!("🚫 Audio asset '{}' failed to load!", name);
@@ -237,11 +237,6 @@ fn monitor_audio_status(
                 }
             }
         }
-
-        info!(
-            "🎵 Audio Status: {} loaded, {} loading, {} failed",
-            loaded_count, loading_count, failed_count
-        );
 
         if failed_count > 0 {
             error!(

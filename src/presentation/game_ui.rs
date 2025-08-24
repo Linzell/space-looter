@@ -3,9 +3,14 @@
 //! This module provides a comprehensive space exploration UI with enhanced graphics,
 //! space terminology, and immersive visual elements for the Space Looter RPG.
 
+use crate::domain::constants::{
+    get_terrain_scanner_color, CRITICAL_TEXT, ENERGY_COLOR, PANEL_BACKGROUND, PRIMARY_TEXT,
+    RESOURCE_COLOR, SCANNER_GRID, SECONDARY_TEXT, SHIP_SIGNATURE, SUCCESS_TEXT, UNEXPLORED_SPACE,
+    WARNING_TEXT,
+};
 use crate::domain::services::font_service::{FontService, FontSize, FontType};
 use crate::domain::services::game_log_service::{GameLogService, GameLogType};
-use crate::domain::value_objects::terrain::TerrainType;
+
 use crate::infrastructure::bevy::font_service::{BevyFontService, RegularText};
 use crate::infrastructure::bevy::resources::{GameStatsResource, MapResource, PlayerResource};
 use crate::infrastructure::time::TimeService;
@@ -103,46 +108,6 @@ pub struct SpaceIcons {
     pub dice: Handle<Image>,
 }
 
-/// Space-themed UI color scheme
-struct SpaceUIColors;
-impl SpaceUIColors {
-    // Main UI Colors
-    const HUD_BACKGROUND: Color = Color::srgba(0.05, 0.15, 0.25, 0.9);
-    const PANEL_BACKGROUND: Color = Color::srgba(0.1, 0.2, 0.3, 0.85);
-    const SCANNER_BACKGROUND: Color = Color::srgba(0.0, 0.1, 0.2, 0.95);
-
-    // Text Colors
-    const PRIMARY_TEXT: Color = Color::srgb(0.85, 0.95, 1.0);
-    const SECONDARY_TEXT: Color = Color::srgb(0.6, 0.8, 0.9);
-    const WARNING_TEXT: Color = Color::srgb(1.0, 0.7, 0.3);
-    const CRITICAL_TEXT: Color = Color::srgb(1.0, 0.3, 0.3);
-    const SUCCESS_TEXT: Color = Color::srgb(0.3, 0.9, 0.5);
-
-    // Accent Colors
-    const ENERGY_COLOR: Color = Color::srgb(0.2, 0.8, 1.0);
-    const RESOURCE_COLOR: Color = Color::srgb(0.8, 0.6, 0.2);
-    const SCANNER_GRID: Color = Color::srgba(0.0, 0.8, 1.0, 0.3);
-
-    // Sector Scanner Colors
-    const SHIP_SIGNATURE: Color = Color::srgb(1.0, 1.0, 0.0); // Bright Yellow
-    const EXPLORED_SPACE: Color = Color::srgba(0.2, 0.6, 0.9, 0.8);
-    const UNEXPLORED_SPACE: Color = Color::srgba(0.1, 0.1, 0.3, 0.6);
-
-    // Terrain Signatures (Space Objects)
-    const ASTEROID_FIELD: Color = Color::srgb(0.6, 0.6, 0.6); // Gray
-    const NEBULA: Color = Color::srgb(0.8, 0.4, 0.9); // Purple
-    const STAR_SYSTEM: Color = Color::srgb(1.0, 0.9, 0.3); // Golden
-    const SPACE_STATION: Color = Color::srgb(0.3, 0.9, 0.3); // Green
-    const DERELICT: Color = Color::srgb(0.7, 0.3, 0.3); // Red
-    const ANOMALY: Color = Color::srgb(1.0, 0.2, 0.8); // Bright Pink
-    const QUANTUM_STORM: Color = Color::srgb(0.5, 0.9, 1.0); // Cyan
-    const WORMHOLE: Color = Color::srgb(0.9, 0.1, 0.9); // Magenta
-    const CRYSTAL_FORMATION: Color = Color::srgb(0.4, 0.8, 0.9); // Light Blue
-    const VOID_REGION: Color = Color::srgb(0.2, 0.1, 0.4); // Dark Purple
-    const MINING_OPERATION: Color = Color::srgb(0.9, 0.7, 0.2); // Orange
-    const ALIEN_TERRITORY: Color = Color::srgb(0.8, 0.9, 0.4); // Lime
-}
-
 /// Setup comprehensive space-themed UI
 fn setup_space_ui(mut commands: Commands) {
     info!("🚀 Initializing Space Looter Command Interface");
@@ -165,7 +130,7 @@ fn setup_space_ui(mut commands: Commands) {
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(15.0),
-                        top: Val::Px(65.0),
+                        top: Val::Px(15.0),
                         width: Val::Px(320.0),
                         height: Val::Px(280.0),
                         padding: UiRect::all(Val::Px(15.0)),
@@ -206,7 +171,7 @@ fn setup_space_ui(mut commands: Commands) {
                                     font_size: FontSize::Medium.to_pixels(),
                                     ..default()
                                 },
-                                TextColor(SpaceUIColors::ENERGY_COLOR),
+                                TextColor(ENERGY_COLOR),
                                 RegularText,
                                 Name::new("ScannerTitle"),
                             ));
@@ -219,7 +184,7 @@ fn setup_space_ui(mut commands: Commands) {
                             font_size: FontSize::Regular.to_pixels(),
                             ..default()
                         },
-                        TextColor(SpaceUIColors::SECONDARY_TEXT),
+                        TextColor(SECONDARY_TEXT),
                         Node {
                             margin: UiRect::bottom(Val::Px(8.0)),
                             ..default()
@@ -243,7 +208,7 @@ fn setup_space_ui(mut commands: Commands) {
                                 border: UiRect::all(Val::Px(1.0)),
                                 ..default()
                             },
-                            BorderColor(SpaceUIColors::SCANNER_GRID),
+                            BorderColor(SCANNER_GRID),
                             ScannerGrid,
                         ))
                         .with_children(|parent| {
@@ -257,8 +222,8 @@ fn setup_space_ui(mut commands: Commands) {
                                             border: UiRect::all(Val::Px(0.5)),
                                             ..default()
                                         },
-                                        BackgroundColor(SpaceUIColors::UNEXPLORED_SPACE),
-                                        BorderColor(SpaceUIColors::SCANNER_GRID),
+                                        BackgroundColor(UNEXPLORED_SPACE),
+                                        BorderColor(SCANNER_GRID),
                                         SectorTile {
                                             grid_x: x - 3,
                                             grid_y: y - 3,
@@ -269,75 +234,13 @@ fn setup_space_ui(mut commands: Commands) {
                         });
                 });
 
-            // Right Panel - Ship Systems & Resources
-            parent
-                .spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        right: Val::Px(15.0),
-                        top: Val::Px(65.0),
-                        width: Val::Px(280.0),
-                        padding: UiRect::all(Val::Px(15.0)),
-                        flex_direction: FlexDirection::Column,
-                        ..default()
-                    },
-                    Name::new("ShipSystemsPanel"),
-                ))
-                .with_children(|parent| {
-                    // Systems header with gear icon
-                    parent
-                        .spawn((Node {
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            margin: UiRect::bottom(Val::Px(10.0)),
-                            ..default()
-                        },))
-                        .with_children(|parent| {
-                            parent.spawn((
-                                ImageNode {
-                                    image: Handle::default(),
-                                    ..default()
-                                },
-                                Node {
-                                    width: Val::Px(16.0),
-                                    height: Val::Px(16.0),
-                                    margin: UiRect::right(Val::Px(8.0)),
-                                    ..default()
-                                },
-                                GearIcon,
-                            ));
-
-                            parent.spawn((
-                                Text::new("SHIP SYSTEMS STATUS"),
-                                TextFont {
-                                    font_size: FontSize::Medium.to_pixels(),
-                                    ..default()
-                                },
-                                TextColor(SpaceUIColors::ENERGY_COLOR),
-                                RegularText,
-                            ));
-                        });
-
-                    // Ship status text
-                    parent.spawn((
-                        Text::new("SHIP SYSTEMS: INITIALIZING..."),
-                        TextFont {
-                            font_size: FontSize::Regular.to_pixels(),
-                            ..default()
-                        },
-                        TextColor(SpaceUIColors::SUCCESS_TEXT),
-                        RegularText,
-                        ShipStatusPanel,
-                    ));
-                });
-
             // Game Log Panel - Bottom Left
             parent
                 .spawn((
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(15.0),
-                        bottom: Val::Px(120.0),
+                        bottom: Val::Px(15.0),
                         width: Val::Px(400.0),
                         height: Val::Px(200.0),
                         padding: UiRect::all(Val::Px(12.0)),
@@ -345,6 +248,7 @@ fn setup_space_ui(mut commands: Commands) {
                         ..default()
                     },
                     GameLogPanel,
+                    BackgroundColor(PANEL_BACKGROUND),
                     Name::new("GameLogPanel"),
                 ))
                 .with_children(|parent| {
@@ -355,7 +259,7 @@ fn setup_space_ui(mut commands: Commands) {
                             font_size: FontSize::Medium.to_pixels(),
                             ..default()
                         },
-                        TextColor(SpaceUIColors::ENERGY_COLOR),
+                        TextColor(ENERGY_COLOR),
                         RegularText,
                         Node {
                             margin: UiRect::bottom(Val::Px(8.0)),
@@ -363,18 +267,30 @@ fn setup_space_ui(mut commands: Commands) {
                         },
                     ));
 
-                    // Scrollable log area
-                    parent.spawn((
-                        Node {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(85.0),
-                            flex_direction: FlexDirection::Column,
-                            overflow: Overflow::clip_y(),
-                            justify_content: JustifyContent::FlexEnd,
-                            ..default()
-                        },
-                        GameLogScrollArea,
-                    ));
+                    // Scrollable log area with working scroll
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Percent(100.0),
+                                height: Val::Percent(85.0),
+                                flex_direction: FlexDirection::Column,
+                                overflow: Overflow::clip_y(), // Enable vertical scrolling
+                                justify_content: JustifyContent::FlexEnd,
+                                ..default()
+                            },
+                            GameLogScrollArea,
+                        ))
+                        .with_children(|parent| {
+                            // Inner content area for log entries
+                            parent.spawn((
+                                Node {
+                                    width: Val::Percent(100.0),
+                                    flex_direction: FlexDirection::Column,
+                                    ..default()
+                                },
+                                LogContentArea,
+                            ));
+                        });
                 });
         });
 
@@ -436,7 +352,7 @@ fn update_space_ui(
 
             if tile_info.grid_x == 0 && tile_info.grid_y == 0 {
                 // Ship signature - pulsing yellow
-                bg_color.0 = SpaceUIColors::SHIP_SIGNATURE;
+                bg_color.0 = SHIP_SIGNATURE;
             } else {
                 let tile_coord = crate::domain::value_objects::TileCoordinate::new(
                     world_x,
@@ -446,12 +362,12 @@ fn update_space_ui(
 
                 if let Some(tile) = map.get_tile(&tile_coord) {
                     if tile.is_explored() {
-                        bg_color.0 = get_space_object_signature(tile.terrain_type);
+                        bg_color.0 = get_terrain_scanner_color(tile.terrain_type);
                     } else {
-                        bg_color.0 = SpaceUIColors::UNEXPLORED_SPACE;
+                        bg_color.0 = UNEXPLORED_SPACE;
                     }
                 } else {
-                    bg_color.0 = SpaceUIColors::UNEXPLORED_SPACE;
+                    bg_color.0 = UNEXPLORED_SPACE;
                 }
             }
         }
@@ -467,10 +383,10 @@ fn update_space_ui(
                 * 100.0) as i32;
 
             let health_status = match health_percent {
-                81..=100 => ("🟢 OPTIMAL", SpaceUIColors::SUCCESS_TEXT),
-                61..=80 => ("🟡 GOOD", SpaceUIColors::WARNING_TEXT),
-                31..=60 => ("🟠 DAMAGED", SpaceUIColors::WARNING_TEXT),
-                _ => ("🔴 CRITICAL", SpaceUIColors::CRITICAL_TEXT),
+                81..=100 => ("🟢 OPTIMAL", SUCCESS_TEXT),
+                61..=80 => ("🟡 GOOD", WARNING_TEXT),
+                31..=60 => ("🟠 DAMAGED", WARNING_TEXT),
+                _ => ("🔴 CRITICAL", CRITICAL_TEXT),
             };
 
             **status_text = format!(
@@ -581,16 +497,16 @@ fn update_game_log_display(
 /// Get the appropriate color for a log type
 fn get_log_type_color(log_type: &GameLogType) -> Color {
     match log_type {
-        GameLogType::Movement => SpaceUIColors::PRIMARY_TEXT,
-        GameLogType::Combat => SpaceUIColors::CRITICAL_TEXT,
-        GameLogType::Discovery => SpaceUIColors::SUCCESS_TEXT,
-        GameLogType::Rest => SpaceUIColors::ENERGY_COLOR,
-        GameLogType::Resources => SpaceUIColors::RESOURCE_COLOR,
-        GameLogType::Event => SpaceUIColors::WARNING_TEXT,
-        GameLogType::System => SpaceUIColors::SECONDARY_TEXT,
-        GameLogType::Warning => SpaceUIColors::WARNING_TEXT,
-        GameLogType::Critical => SpaceUIColors::CRITICAL_TEXT,
-        GameLogType::Narrative => SpaceUIColors::PRIMARY_TEXT,
+        GameLogType::Movement => PRIMARY_TEXT,
+        GameLogType::Combat => CRITICAL_TEXT,
+        GameLogType::Discovery => SUCCESS_TEXT,
+        GameLogType::Rest => ENERGY_COLOR,
+        GameLogType::Resources => RESOURCE_COLOR,
+        GameLogType::Event => WARNING_TEXT,
+        GameLogType::System => SECONDARY_TEXT,
+        GameLogType::Warning => WARNING_TEXT,
+        GameLogType::Critical => CRITICAL_TEXT,
+        GameLogType::Narrative => PRIMARY_TEXT,
     }
 }
 
@@ -637,48 +553,29 @@ fn handle_ui_animations(
     }
 }
 
-/// Get space object signature color based on terrain type
-fn get_space_object_signature(terrain: TerrainType) -> Color {
-    match terrain {
-        TerrainType::Plains => SpaceUIColors::EXPLORED_SPACE, // Open space
-        TerrainType::Forest => SpaceUIColors::NEBULA,         // Dense nebula
-        TerrainType::Mountains => SpaceUIColors::ASTEROID_FIELD, // Asteroid field
-        TerrainType::Desert => SpaceUIColors::VOID_REGION,    // Void region
-        TerrainType::Ocean => SpaceUIColors::QUANTUM_STORM,   // Quantum storm
-        TerrainType::Tundra => SpaceUIColors::CRYSTAL_FORMATION, // Crystal formations
-        TerrainType::Volcanic => SpaceUIColors::STAR_SYSTEM,  // Star system
-        TerrainType::Crystal => SpaceUIColors::CRYSTAL_FORMATION, // Crystal fields
-        TerrainType::Cave => SpaceUIColors::WORMHOLE,         // Wormhole
-        TerrainType::Constructed => SpaceUIColors::SPACE_STATION, // Space station
-        TerrainType::Swamp => SpaceUIColors::ALIEN_TERRITORY, // Alien territory
-        TerrainType::Anomaly => SpaceUIColors::ANOMALY,       // Space anomaly
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::domain::TerrainType;
+
     use super::*;
 
     #[test]
     fn space_object_signatures_are_unique() {
         assert_ne!(
-            get_space_object_signature(TerrainType::Plains),
-            get_space_object_signature(TerrainType::Forest)
+            get_terrain_scanner_color(TerrainType::Plains),
+            get_terrain_scanner_color(TerrainType::Forest)
         );
         assert_ne!(
-            get_space_object_signature(TerrainType::Ocean),
-            get_space_object_signature(TerrainType::Desert)
+            get_terrain_scanner_color(TerrainType::Ocean),
+            get_terrain_scanner_color(TerrainType::Desert)
         );
     }
 
     #[test]
     fn space_ui_colors_defined() {
-        assert_ne!(SpaceUIColors::HUD_BACKGROUND, SpaceUIColors::PRIMARY_TEXT);
-        assert_ne!(SpaceUIColors::PRIMARY_TEXT, SpaceUIColors::ENERGY_COLOR);
-        assert_ne!(
-            SpaceUIColors::SHIP_SIGNATURE,
-            SpaceUIColors::UNEXPLORED_SPACE
-        );
+        assert_ne!(PANEL_BACKGROUND, PRIMARY_TEXT);
+        assert_ne!(PRIMARY_TEXT, ENERGY_COLOR);
+        assert_ne!(SHIP_SIGNATURE, UNEXPLORED_SPACE);
     }
 
     #[test]
@@ -710,7 +607,7 @@ mod tests {
         ];
 
         for terrain in all_terrains {
-            let color = get_space_object_signature(terrain);
+            let color = get_terrain_scanner_color(terrain);
             // Ensure no color is completely black (invalid)
             if let Color::Srgba(srgba) = color {
                 assert!(srgba.red > 0.0 || srgba.green > 0.0 || srgba.blue > 0.0);

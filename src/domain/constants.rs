@@ -4,7 +4,8 @@
 //! balance, and behavior. These values are used throughout the domain layer
 //! to ensure consistent game rules and progression.
 
-use crate::domain::value_objects::{DiceType, ResourceType};
+use crate::domain::value_objects::{DiceType, ResourceType, TerrainType};
+use bevy::prelude::Color;
 
 // =============================================================================
 // DICE MECHANICS CONSTANTS
@@ -284,6 +285,65 @@ pub const MEDIUM_DANGER_THRESHOLD: u8 = 6;
 pub const HIGH_DANGER_THRESHOLD: u8 = 8;
 
 // =============================================================================
+// TERRAIN RENDERING CONSTANTS
+// =============================================================================
+
+/// Terrain colors for consistent rendering across 3D map and UI components
+/// These colors match the 3D map renderer materials for visual consistency
+pub const TERRAIN_COLOR_PLAINS: Color = Color::srgb(0.4, 0.8, 0.3); // Green
+pub const TERRAIN_COLOR_FOREST: Color = Color::srgb(0.2, 0.6, 0.2); // Dark green
+pub const TERRAIN_COLOR_MOUNTAINS: Color = Color::srgb(0.6, 0.5, 0.4); // Gray-brown
+pub const TERRAIN_COLOR_DESERT: Color = Color::srgb(0.9, 0.8, 0.5); // Sandy yellow
+pub const TERRAIN_COLOR_TUNDRA: Color = Color::srgb(0.8, 0.9, 1.0); // Icy blue
+pub const TERRAIN_COLOR_OCEAN: Color = Color::srgb(0.2, 0.4, 0.8); // Deep blue
+pub const TERRAIN_COLOR_SWAMP: Color = Color::srgb(0.4, 0.5, 0.3); // Murky green
+pub const TERRAIN_COLOR_VOLCANIC: Color = Color::srgb(0.8, 0.2, 0.1); // Red-orange
+pub const TERRAIN_COLOR_CONSTRUCTED: Color = Color::srgb(0.5, 0.5, 0.6); // Metallic gray
+pub const TERRAIN_COLOR_CAVE: Color = Color::srgb(0.3, 0.2, 0.2); // Dark brown
+pub const TERRAIN_COLOR_CRYSTAL: Color = Color::srgb(0.8, 0.6, 1.0); // Purple crystal
+pub const TERRAIN_COLOR_ANOMALY: Color = Color::srgb(1.0, 0.0, 1.0); // Magenta
+
+// =============================================================================
+// UI COLOR CONSTANTS
+// =============================================================================
+
+/// Main UI background colors for space-themed interface
+pub const HUD_BACKGROUND: Color = Color::srgba(0.05, 0.15, 0.25, 0.9);
+pub const PANEL_BACKGROUND: Color = Color::srgba(0.1, 0.2, 0.3, 0.85);
+pub const SCANNER_BACKGROUND: Color = Color::srgba(0.0, 0.1, 0.2, 0.95);
+
+/// Text colors for UI elements
+pub const PRIMARY_TEXT: Color = Color::srgb(0.85, 0.95, 1.0);
+pub const SECONDARY_TEXT: Color = Color::srgb(0.6, 0.8, 0.9);
+pub const WARNING_TEXT: Color = Color::srgb(1.0, 0.7, 0.3);
+pub const CRITICAL_TEXT: Color = Color::srgb(1.0, 0.3, 0.3);
+pub const SUCCESS_TEXT: Color = Color::srgb(0.3, 0.9, 0.5);
+
+/// Accent colors for UI elements
+pub const ENERGY_COLOR: Color = Color::srgb(0.2, 0.8, 1.0);
+pub const RESOURCE_COLOR: Color = Color::srgb(0.8, 0.6, 0.2);
+pub const SCANNER_GRID: Color = Color::srgba(0.0, 0.8, 1.0, 0.3);
+
+/// Sector scanner visualization colors
+pub const SHIP_SIGNATURE: Color = Color::srgb(1.0, 1.0, 0.0); // Bright Yellow
+pub const EXPLORED_SPACE: Color = Color::srgba(0.2, 0.6, 0.9, 0.8);
+pub const UNEXPLORED_SPACE: Color = Color::srgba(0.1, 0.1, 0.3, 0.6);
+
+/// Space object signature colors for scanner display
+pub const ASTEROID_FIELD: Color = Color::srgb(0.6, 0.6, 0.6); // Gray
+pub const NEBULA: Color = Color::srgb(0.8, 0.4, 0.9); // Purple
+pub const STAR_SYSTEM: Color = Color::srgb(1.0, 0.9, 0.3); // Golden
+pub const SPACE_STATION: Color = Color::srgb(0.3, 0.9, 0.3); // Green
+pub const DERELICT: Color = Color::srgb(0.7, 0.3, 0.3); // Red
+pub const ANOMALY_SIGNATURE: Color = Color::srgb(1.0, 0.2, 0.8); // Bright Pink
+pub const QUANTUM_STORM: Color = Color::srgb(0.5, 0.9, 1.0); // Cyan
+pub const WORMHOLE: Color = Color::srgb(0.9, 0.1, 0.9); // Magenta
+pub const CRYSTAL_FORMATION: Color = Color::srgb(0.4, 0.8, 0.9); // Light Blue
+pub const VOID_REGION: Color = Color::srgb(0.2, 0.1, 0.4); // Dark Purple
+pub const MINING_OPERATION: Color = Color::srgb(0.9, 0.7, 0.2); // Orange
+pub const ALIEN_TERRITORY: Color = Color::srgb(0.8, 0.9, 0.4); // Lime
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
@@ -414,5 +474,99 @@ mod tests {
             MAX_FULLY_VISIBLE_TILES + MAX_FOGGED_VISIBLE_TILES
         );
         assert!(MAX_FOGGED_VISIBLE_TILES > MAX_FULLY_VISIBLE_TILES);
+    }
+
+    #[test]
+    fn test_terrain_colors_defined() {
+        // Ensure all terrain colors are defined and valid
+        assert_ne!(TERRAIN_COLOR_PLAINS, TERRAIN_COLOR_FOREST);
+        assert_ne!(TERRAIN_COLOR_DESERT, TERRAIN_COLOR_OCEAN);
+
+        // Test that colors are in valid range
+        if let Color::Srgba(srgba) = TERRAIN_COLOR_PLAINS {
+            assert!(srgba.red >= 0.0 && srgba.red <= 1.0);
+            assert!(srgba.green >= 0.0 && srgba.green <= 1.0);
+            assert!(srgba.blue >= 0.0 && srgba.blue <= 1.0);
+        }
+    }
+
+    #[test]
+    fn test_scanner_color_simulation() {
+        // Test that material-aware scanner colors are different from base colors
+        let base_plains = get_terrain_render_color(TerrainType::Plains);
+        let scanner_plains = get_terrain_scanner_color(TerrainType::Plains);
+
+        // Scanner colors should be adjusted for material properties
+        // Plains has high roughness (0.8) so should appear darker
+        let base_linear = base_plains.to_linear();
+        let scanner_linear = scanner_plains.to_linear();
+        assert!(scanner_linear.red <= base_linear.red);
+        assert!(scanner_linear.green <= base_linear.green);
+        assert!(scanner_linear.blue <= base_linear.blue);
+
+        // Test emissive materials (Volcanic should be brighter)
+        let base_volcanic = get_terrain_render_color(TerrainType::Volcanic);
+        let scanner_volcanic = get_terrain_scanner_color(TerrainType::Volcanic);
+
+        // Should have some red component from emissive
+        let base_vol_linear = base_volcanic.to_linear();
+        let scanner_vol_linear = scanner_volcanic.to_linear();
+        assert!(scanner_vol_linear.red >= base_vol_linear.red * 0.5);
+
+        // Test metallic materials (Constructed should be darker)
+        let base_constructed = get_terrain_render_color(TerrainType::Constructed);
+        let scanner_constructed = get_terrain_scanner_color(TerrainType::Constructed);
+
+        // High metallic (0.7) should make it darker
+        let base_const_linear = base_constructed.to_linear();
+        let scanner_const_linear = scanner_constructed.to_linear();
+        assert!(scanner_const_linear.red < base_const_linear.red);
+
+        // All colors should be in valid range
+        let plains_linear = scanner_plains.to_linear();
+        let volcanic_linear = scanner_volcanic.to_linear();
+        let constructed_linear = scanner_constructed.to_linear();
+        assert!(plains_linear.red >= 0.0 && plains_linear.red <= 1.0);
+        assert!(volcanic_linear.green >= 0.0 && volcanic_linear.green <= 1.0);
+        assert!(constructed_linear.blue >= 0.0 && constructed_linear.blue <= 1.0);
+    }
+}
+
+/// Get the rendering color for a terrain type
+/// This ensures consistent colors between 3D map and UI components
+pub fn get_terrain_render_color(terrain_type: TerrainType) -> Color {
+    match terrain_type {
+        TerrainType::Plains => TERRAIN_COLOR_PLAINS,
+        TerrainType::Forest => TERRAIN_COLOR_FOREST,
+        TerrainType::Mountains => TERRAIN_COLOR_MOUNTAINS,
+        TerrainType::Desert => TERRAIN_COLOR_DESERT,
+        TerrainType::Tundra => TERRAIN_COLOR_TUNDRA,
+        TerrainType::Ocean => TERRAIN_COLOR_OCEAN,
+        TerrainType::Swamp => TERRAIN_COLOR_SWAMP,
+        TerrainType::Volcanic => TERRAIN_COLOR_VOLCANIC,
+        TerrainType::Constructed => TERRAIN_COLOR_CONSTRUCTED,
+        TerrainType::Cave => TERRAIN_COLOR_CAVE,
+        TerrainType::Crystal => TERRAIN_COLOR_CRYSTAL,
+        TerrainType::Anomaly => TERRAIN_COLOR_ANOMALY,
+    }
+}
+
+/// Get the scanner grid color that matches the bright 3D appearance
+/// Uses colors that directly match what's visible in the 3D rendered tiles
+pub fn get_terrain_scanner_color(terrain_type: TerrainType) -> Color {
+    // Use bright colors that match the actual 3D appearance
+    match terrain_type {
+        TerrainType::Plains => Color::srgb(0.5, 0.9, 0.4), // Bright green like in 3D
+        TerrainType::Forest => Color::srgb(0.3, 0.7, 0.3), // Bright forest green
+        TerrainType::Mountains => Color::srgb(0.7, 0.6, 0.5), // Light gray-brown
+        TerrainType::Desert => Color::srgb(1.0, 0.9, 0.6), // Very bright sandy yellow like in 3D
+        TerrainType::Tundra => Color::srgb(0.9, 1.0, 1.0), // Very bright icy blue
+        TerrainType::Ocean => Color::srgb(0.3, 0.5, 0.9),  // Bright blue
+        TerrainType::Swamp => Color::srgb(0.5, 0.6, 0.4),  // Brighter murky green
+        TerrainType::Volcanic => Color::srgb(0.9, 0.3, 0.2), // Bright red-orange
+        TerrainType::Constructed => Color::srgb(0.6, 0.6, 0.7), // Light metallic gray
+        TerrainType::Cave => Color::srgb(0.4, 0.3, 0.3),   // Lighter brown
+        TerrainType::Crystal => Color::srgb(0.9, 0.7, 1.0), // Bright purple crystal
+        TerrainType::Anomaly => Color::srgb(1.0, 0.2, 1.0), // Bright magenta
     }
 }
