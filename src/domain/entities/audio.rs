@@ -96,7 +96,9 @@ impl Volume {
 
 impl Default for Volume {
     fn default() -> Self {
-        Self { value: 0.7 }
+        Self {
+            value: crate::domain::constants::DEFAULT_MASTER_VOLUME,
+        }
     }
 }
 
@@ -167,8 +169,8 @@ impl MusicSystem {
             ambient_track: None,
             music_playlist: Vec::new(),
             current_music: None,
-            music_volume: Volume::default(),
-            ambient_volume: Volume::new(0.3).unwrap(),
+            music_volume: Volume::new(crate::domain::constants::DEFAULT_MUSIC_VOLUME).unwrap(),
+            ambient_volume: Volume::new(crate::domain::constants::DEFAULT_AMBIENT_VOLUME).unwrap(),
             last_track_index: None,
         }
     }
@@ -251,7 +253,7 @@ impl MusicProgression {
         self.current_area_type = area;
 
         // Adapt volumes based on progression
-        let base_music_volume = 0.7;
+        let base_music_volume = crate::domain::constants::DEFAULT_MUSIC_VOLUME;
         let tension_modifier = self.danger_level * 0.3; // Increase volume with danger
         let new_music_volume = (base_music_volume + tension_modifier).clamp(0.0, 1.0);
 
@@ -260,7 +262,8 @@ impl MusicProgression {
 
         // Ambient volume stays more consistent but can be slightly affected
         let ambient_modifier = self.danger_level * 0.1;
-        let new_ambient_volume = (0.3 + ambient_modifier).clamp(0.0, 1.0);
+        let new_ambient_volume =
+            (crate::domain::constants::DEFAULT_AMBIENT_VOLUME + ambient_modifier).clamp(0.0, 1.0);
         self.music_system
             .set_ambient_volume(Volume::new(new_ambient_volume).unwrap());
     }
@@ -270,13 +273,14 @@ impl MusicProgression {
         self.current_terrain_type = Some(terrain);
 
         // Adjust ambient volume based on terrain characteristics
-        let terrain_volume_modifier = match terrain {
-            TerrainType::Ocean | TerrainType::Swamp => 0.4, // Louder natural sounds
-            TerrainType::Desert | TerrainType::Tundra => 0.2, // Quieter, sparse sounds
-            TerrainType::Volcanic | TerrainType::Anomaly => 0.5, // Prominent atmospheric sounds
-            TerrainType::Cave | TerrainType::Crystal => 0.35, // Echoing, resonant sounds
-            _ => 0.3,                                       // Default ambient volume
-        };
+        let terrain_volume_modifier = crate::domain::constants::DEFAULT_AMBIENT_VOLUME
+            * match terrain {
+                TerrainType::Ocean | TerrainType::Swamp => 1.33, // Louder natural sounds
+                TerrainType::Desert | TerrainType::Tundra => 0.67, // Quieter, sparse sounds
+                TerrainType::Volcanic | TerrainType::Anomaly => 1.67, // Prominent atmospheric sounds
+                TerrainType::Cave | TerrainType::Crystal => 1.17,     // Echoing, resonant sounds
+                _ => 1.0,                                             // Default ambient volume
+            };
 
         let danger_modifier = self.danger_level * 0.1;
         let final_ambient_volume = (terrain_volume_modifier + danger_modifier).clamp(0.0, 1.0);
@@ -360,7 +364,10 @@ mod tests {
 
         assert_eq!(asset.name, "test_music");
         assert_eq!(asset.file_path, "assets/music/test.ogg");
-        assert_eq!(asset.default_volume.value(), 0.7);
+        assert_eq!(
+            asset.default_volume.value(),
+            crate::domain::constants::DEFAULT_MASTER_VOLUME
+        );
     }
 
     #[test]
@@ -388,6 +395,9 @@ mod tests {
         progression.adapt_to_progression(0.8, 0.5, AreaType::Asteroid);
 
         assert_eq!(progression.danger_level, 0.8);
-        assert!(progression.music_system.music_volume.value() > 0.7);
+        assert!(
+            progression.music_system.music_volume.value()
+                > crate::domain::constants::DEFAULT_MUSIC_VOLUME
+        );
     }
 }

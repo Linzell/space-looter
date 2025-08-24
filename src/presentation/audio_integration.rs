@@ -107,8 +107,8 @@ impl Default for MusicManager {
                 crate::domain::constants::MUSIC_CHANGE_INTERVAL_SECONDS,
                 bevy::time::TimerMode::Repeating,
             ),
-            ambient_volume: 0.3,
-            music_volume: 0.6,
+            ambient_volume: crate::domain::constants::DEFAULT_AMBIENT_VOLUME,
+            music_volume: crate::domain::constants::DEFAULT_MUSIC_VOLUME,
             danger_level: 0.0,
             current_area: AreaType::Space,
             current_terrain: None,
@@ -190,7 +190,12 @@ fn handle_movement_audio(
             if let Some(dice_handle) = &audio_assets.dice_roll {
                 let load_state = asset_server.load_state(dice_handle.id());
                 info!("🎲 Playing dice roll sound (state: {:?})", load_state);
-                commands.spawn(AudioPlayer::new(dice_handle.clone()));
+                commands.spawn((
+                    AudioPlayer::new(dice_handle.clone()),
+                    PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                        crate::domain::constants::DEFAULT_SFX_VOLUME,
+                    )),
+                ));
             } else {
                 warn!("🎲 No dice roll audio handle available!");
             }
@@ -201,7 +206,12 @@ fn handle_movement_audio(
             if let Some(step_handle) = &audio_assets.movement_step {
                 let load_state = asset_server.load_state(step_handle.id());
                 info!("👟 Playing footstep sound (state: {:?})", load_state);
-                commands.spawn(AudioPlayer::new(step_handle.clone()));
+                commands.spawn((
+                    AudioPlayer::new(step_handle.clone()),
+                    PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                        crate::domain::constants::DEFAULT_SFX_VOLUME,
+                    )),
+                ));
             } else {
                 warn!("👟 No footstep audio handle available!");
             }
@@ -229,7 +239,12 @@ fn handle_system_audio(
         if let Some(handle) = audio_handle {
             let load_state = asset_server.load_state(handle.id());
             info!("🔔 Playing system audio (state: {:?})", load_state);
-            commands.spawn(AudioPlayer::new(handle.clone()));
+            commands.spawn((
+                AudioPlayer::new(handle.clone()),
+                PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                    crate::domain::constants::DEFAULT_SFX_VOLUME,
+                )),
+            ));
         } else {
             warn!("🔔 No audio handle available for system event!");
         }
@@ -252,7 +267,12 @@ fn handle_discovery_audio(
         if let Some(discovery_handle) = &audio_assets.discovery_chime {
             let load_state = asset_server.load_state(discovery_handle.id());
             info!("🔍 Playing discovery chime (state: {:?})", load_state);
-            commands.spawn(AudioPlayer::new(discovery_handle.clone()));
+            commands.spawn((
+                AudioPlayer::new(discovery_handle.clone()),
+                PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                    crate::domain::constants::DEFAULT_SFX_VOLUME,
+                )),
+            ));
         } else {
             warn!("🔍 No discovery chime audio handle available!");
         }
@@ -278,7 +298,12 @@ fn handle_resource_audio(
                 "💰 Playing resource collect sound (state: {:?})",
                 load_state
             );
-            commands.spawn(AudioPlayer::new(resource_handle.clone()));
+            commands.spawn((
+                AudioPlayer::new(resource_handle.clone()),
+                PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                    crate::domain::constants::DEFAULT_SFX_VOLUME,
+                )),
+            ));
         } else {
             warn!("💰 No resource collect audio handle available!");
         }
@@ -301,7 +326,12 @@ fn handle_rest_audio(
         if let Some(rest_handle) = &audio_assets.rest_complete {
             let load_state = asset_server.load_state(rest_handle.id());
             info!("😴 Playing rest complete sound (state: {:?})", load_state);
-            commands.spawn(AudioPlayer::new(rest_handle.clone()));
+            commands.spawn((
+                AudioPlayer::new(rest_handle.clone()),
+                PlaybackSettings::ONCE.with_volume(bevy::audio::Volume::Linear(
+                    crate::domain::constants::DEFAULT_SFX_VOLUME,
+                )),
+            ));
         } else {
             warn!("😴 No rest complete audio handle available!");
         }
@@ -604,18 +634,19 @@ fn handle_music_progression_events(
             music_manager.current_area = event.area_type.clone();
 
             // Adapt volumes based on danger level and area
-            let base_music_volume = match event.area_type {
-                AreaType::Space => 0.6,
-                AreaType::Asteroid => 0.7,
-                AreaType::Station => 0.5,
-                AreaType::Nebula => 0.8,
-                AreaType::Anomaly => 0.9,
-            };
+            let base_music_volume = crate::domain::constants::DEFAULT_MUSIC_VOLUME
+                * match event.area_type {
+                    AreaType::Space => 1.0,
+                    AreaType::Asteroid => 1.17,
+                    AreaType::Station => 0.83,
+                    AreaType::Nebula => 1.33,
+                    AreaType::Anomaly => 1.5,
+                };
 
             let tension_modifier = event.danger_level * 0.4;
             music_manager.music_volume = (base_music_volume + tension_modifier).clamp(0.0, 1.0);
 
-            let base_ambient_volume = 0.3;
+            let base_ambient_volume = crate::domain::constants::DEFAULT_AMBIENT_VOLUME;
             let ambient_modifier = event.danger_level * 0.15;
             music_manager.ambient_volume = (base_ambient_volume + ambient_modifier).clamp(0.0, 1.0);
 
@@ -696,17 +727,18 @@ fn handle_terrain_change_events(
                     }
 
                     // Adjust volume based on terrain characteristics
-                    let terrain_volume = match event.new_terrain {
-                        crate::domain::value_objects::terrain::TerrainType::Ocean
-                        | crate::domain::value_objects::terrain::TerrainType::Swamp => 0.4,
-                        crate::domain::value_objects::terrain::TerrainType::Desert
-                        | crate::domain::value_objects::terrain::TerrainType::Tundra => 0.2,
-                        crate::domain::value_objects::terrain::TerrainType::Volcanic
-                        | crate::domain::value_objects::terrain::TerrainType::Anomaly => 0.5,
-                        crate::domain::value_objects::terrain::TerrainType::Cave
-                        | crate::domain::value_objects::terrain::TerrainType::Crystal => 0.35,
-                        _ => 0.3,
-                    };
+                    let terrain_volume = crate::domain::constants::DEFAULT_AMBIENT_VOLUME
+                        * match event.new_terrain {
+                            crate::domain::value_objects::terrain::TerrainType::Ocean
+                            | crate::domain::value_objects::terrain::TerrainType::Swamp => 1.33,
+                            crate::domain::value_objects::terrain::TerrainType::Desert
+                            | crate::domain::value_objects::terrain::TerrainType::Tundra => 0.67,
+                            crate::domain::value_objects::terrain::TerrainType::Volcanic
+                            | crate::domain::value_objects::terrain::TerrainType::Anomaly => 1.67,
+                            crate::domain::value_objects::terrain::TerrainType::Cave
+                            | crate::domain::value_objects::terrain::TerrainType::Crystal => 1.17,
+                            _ => 1.0,
+                        };
 
                     let danger_modifier = music_manager.danger_level * 0.1;
                     let final_volume = (terrain_volume + danger_modifier).clamp(0.0, 1.0);
@@ -759,8 +791,11 @@ fn handle_terrain_change_events(
                                 let entity = commands
                                     .spawn((
                                         AudioPlayer::new(space_handle.clone()),
-                                        PlaybackSettings::LOOP
-                                            .with_volume(bevy::audio::Volume::Linear(0.2)),
+                                        PlaybackSettings::LOOP.with_volume(
+                                            bevy::audio::Volume::Linear(
+                                                crate::domain::constants::DEFAULT_MUSIC_VOLUME,
+                                            ),
+                                        ),
                                     ))
                                     .id();
                                 music_manager.current_ambient = Some(entity);
