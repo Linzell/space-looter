@@ -26,7 +26,7 @@ pub mod tile_movement;
 pub mod visibility_service;
 
 // Re-export services for convenience
-pub use audio_service::{AudioService, AudioServiceError, DefaultAudioService};
+pub use audio_service::{AudioService, AudioServiceError, SimpleAudioService};
 pub use collision::CollisionService;
 pub use font_service::{FontConfig, FontService, FontSize, FontType, FontWeight};
 pub use game_log_service::{GameLogMessage, GameLogService, GameLogType, LogPriority};

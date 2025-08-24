@@ -344,6 +344,125 @@ pub const MINING_OPERATION: Color = Color::srgb(0.9, 0.7, 0.2); // Orange
 pub const ALIEN_TERRITORY: Color = Color::srgb(0.8, 0.9, 0.4); // Lime
 
 // =============================================================================
+// AUDIO FILE PATHS
+// =============================================================================
+
+// Dice Sound Effects
+pub const AUDIO_DICE_ROLL: &str = "audio/sfx/dice/dice_roll.wav";
+pub const AUDIO_DICE_CRITICAL_SUCCESS: &str = "audio/sfx/dice/dice_critical_success.wav";
+pub const AUDIO_DICE_CRITICAL_FAILURE: &str = "audio/sfx/dice/dice_critical_failure.wav";
+pub const AUDIO_DICE_HIGH_ROLL: &str = "audio/sfx/dice/dice_high_roll.wav";
+pub const AUDIO_DICE_LOW_ROLL: &str = "audio/sfx/dice/dice_low_roll.wav";
+
+// Movement Sound Effects
+pub const AUDIO_MOVEMENT_STEP: &str = "audio/sfx/movement/footstep_metal.wav";
+pub const AUDIO_MOVEMENT_SUCCESS: &str = "audio/sfx/movement/movement_success.wav";
+pub const AUDIO_MOVEMENT_BLOCKED: &str = "audio/sfx/movement/movement_blocked.wav";
+pub const AUDIO_FOOTSTEP_ROCK: &str = "audio/sfx/movement/footstep_rock.wav";
+pub const AUDIO_FOOTSTEP_SAND: &str = "audio/sfx/movement/footstep_sand.wav";
+pub const AUDIO_TELEPORT_ENTER: &str = "audio/sfx/movement/teleport_enter.wav";
+pub const AUDIO_TELEPORT_EXIT: &str = "audio/sfx/movement/teleport_exit.wav";
+
+// Event Sound Effects
+pub const AUDIO_DISCOVERY_CHIME: &str = "audio/sfx/events/crystal_chime.wav";
+pub const AUDIO_RESOURCE_FOUND: &str = "audio/sfx/events/resource_found.wav";
+pub const AUDIO_RARE_RESOURCE: &str = "audio/sfx/events/rare_resource.wav";
+pub const AUDIO_REST_COMPLETE: &str = "audio/sfx/events/rest_complete.wav";
+pub const AUDIO_METAL_CLANK: &str = "audio/sfx/events/metal_clank.wav";
+pub const AUDIO_ORGANIC_SQUELCH: &str = "audio/sfx/events/organic_squelch.wav";
+
+// UI Sound Effects
+pub const AUDIO_UI_CLICK: &str = "audio/sfx/ui/button_click.wav";
+pub const AUDIO_UI_HOVER: &str = "audio/sfx/ui/button_hover.wav";
+pub const AUDIO_UI_NOTIFICATION: &str = "audio/sfx/ui/notification.wav";
+pub const AUDIO_UI_WARNING: &str = "audio/sfx/ui/warning.wav";
+
+// Terrain-specific Ambient Sounds (dedicated files)
+pub const AUDIO_AMBIENT_PLAINS: &str = "audio/ambient/plains_wind.ogg";
+pub const AUDIO_AMBIENT_FOREST: &str = "audio/ambient/forest_birds.ogg";
+pub const AUDIO_AMBIENT_MOUNTAINS: &str = "audio/ambient/mountain_wind.ogg";
+pub const AUDIO_AMBIENT_DESERT: &str = "audio/ambient/desert_silence.ogg";
+pub const AUDIO_AMBIENT_TUNDRA: &str = "audio/ambient/tundra_cold.ogg";
+pub const AUDIO_AMBIENT_SWAMP: &str = "audio/ambient/swamp_bubbles.ogg";
+pub const AUDIO_AMBIENT_OCEAN: &str = "audio/ambient/ocean_waves.ogg";
+pub const AUDIO_AMBIENT_VOLCANIC: &str = "audio/ambient/volcanic_rumble.ogg";
+pub const AUDIO_AMBIENT_ANOMALY: &str = "audio/ambient/anomaly_hum.ogg";
+pub const AUDIO_AMBIENT_CONSTRUCTED: &str = "audio/ambient/machinery_hum.ogg";
+pub const AUDIO_AMBIENT_CAVE: &str = "audio/ambient/cave_echo.ogg";
+pub const AUDIO_AMBIENT_CRYSTAL: &str = "audio/ambient/crystal_chime.ogg";
+pub const AUDIO_AMBIENT_SPACE: &str = "audio/ambient/space_ambient.ogg"; // Default/fallback
+
+// Menu Music
+pub const AUDIO_MENU_THEME: &str = "audio/music/theme/menu_theme.ogg";
+
+// Random Music Playlist (only use working files to avoid load errors)
+pub const AUDIO_MUSIC_PLAYLIST: &[&str] = &[
+    "audio/music/theme/menu_theme.ogg",
+    "audio/music/theme/menu_theme2.ogg",
+    "audio/music/theme/menu_theme3.ogg",
+];
+
+// Track display names (keep in sync with AUDIO_MUSIC_PLAYLIST)
+pub const AUDIO_TRACK_NAMES: &[&str] = &[
+    "Dreams under the stars",
+    "Legend of Nocturne",
+    "Whispers of September",
+];
+
+// Audio Volume Defaults
+pub const DEFAULT_MASTER_VOLUME: f32 = 0.7;
+pub const DEFAULT_MUSIC_VOLUME: f32 = 0.6;
+pub const DEFAULT_AMBIENT_VOLUME: f32 = 0.3;
+pub const DEFAULT_SFX_VOLUME: f32 = 0.8;
+
+// Music Timing Constants
+pub const MUSIC_CHANGE_INTERVAL_SECONDS: f32 = 30.0; // How long between track changes
+pub const AMBIENT_RETRY_INTERVAL_SECONDS: u64 = 10; // How often to retry loading ambient
+pub const AUDIO_STATUS_CHECK_INTERVAL_SECONDS: u64 = 15; // How often to check asset status
+
+/// Get ambient sound path for a terrain type
+pub fn get_ambient_sound_for_terrain(
+    terrain: &crate::domain::value_objects::terrain::TerrainType,
+) -> &'static str {
+    use crate::domain::value_objects::terrain::TerrainType;
+    match terrain {
+        TerrainType::Plains => AUDIO_AMBIENT_PLAINS,
+        TerrainType::Forest => AUDIO_AMBIENT_FOREST,
+        TerrainType::Mountains => AUDIO_AMBIENT_MOUNTAINS,
+        TerrainType::Desert => AUDIO_AMBIENT_DESERT,
+        TerrainType::Tundra => AUDIO_AMBIENT_TUNDRA,
+        TerrainType::Swamp => AUDIO_AMBIENT_SWAMP,
+        TerrainType::Ocean => AUDIO_AMBIENT_OCEAN,
+        TerrainType::Volcanic => AUDIO_AMBIENT_VOLCANIC,
+        TerrainType::Anomaly => AUDIO_AMBIENT_ANOMALY,
+        TerrainType::Constructed => AUDIO_AMBIENT_CONSTRUCTED,
+        TerrainType::Cave => AUDIO_AMBIENT_CAVE,
+        TerrainType::Crystal => AUDIO_AMBIENT_CRYSTAL,
+    }
+}
+
+/// Get terrain display name for logging
+pub fn get_terrain_name(
+    terrain: &crate::domain::value_objects::terrain::TerrainType,
+) -> &'static str {
+    use crate::domain::value_objects::terrain::TerrainType;
+    match terrain {
+        TerrainType::Plains => "Plains",
+        TerrainType::Forest => "Forest",
+        TerrainType::Mountains => "Mountains",
+        TerrainType::Desert => "Desert",
+        TerrainType::Tundra => "Tundra",
+        TerrainType::Swamp => "Swamp",
+        TerrainType::Ocean => "Ocean",
+        TerrainType::Volcanic => "Volcanic",
+        TerrainType::Anomaly => "Anomaly",
+        TerrainType::Constructed => "Constructed",
+        TerrainType::Cave => "Cave",
+        TerrainType::Crystal => "Crystal",
+    }
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 

@@ -17,7 +17,7 @@ pub mod resources;
 pub mod systems;
 
 // Re-export common Bevy integration types
-pub use audio::{AudioAssets, AudioPlaybacks, AudioSettings, SpaceLooterAudioPlugin};
+pub use audio::{AudioPlaybacks, BevyAudioAdapter, SpaceLooterAudioPlugin};
 pub use components::{EnemyComponent, PlayerComponent, ScoreDisplayComponent, VelocityComponent};
 pub use font_service::{BevyFontService, FontPlugin};
 pub use resources::{GameBoundariesResource, GameSessionResource, ScoreResource};

@@ -8,6 +8,7 @@ use crate::domain::services::{MapService, TileCacheService, VisibilityLevel, Vis
 use crate::domain::value_objects::terrain::TerrainType;
 use crate::domain::value_objects::TileCoordinate;
 use crate::infrastructure::bevy::resources::{MapResource, PlayerResource};
+use crate::presentation::audio_integration::TerrainChangeEvent;
 use bevy::prelude::*;
 
 /// Plugin for 3D isometric map rendering functionality
@@ -29,6 +30,7 @@ impl Plugin for MapRendererPlugin {
                 render_on_map_generation_system,
                 force_initial_render_system,
                 initial_map_render_system,
+                detect_player_terrain_changes,
             )
                 .chain()
                 .after(crate::rpg_exploration_system),
@@ -179,6 +181,7 @@ pub struct RenderState {
     pub rendered_tiles: std::collections::HashSet<(i32, i32, i32)>,
     pub tile_cache: TileCacheService,
     pub initial_exploration_done: bool,
+    pub last_terrain_type: Option<TerrainType>,
 }
 
 impl Default for RenderState {
@@ -188,6 +191,7 @@ impl Default for RenderState {
             rendered_tiles: std::collections::HashSet::new(),
             tile_cache: TileCacheService::new(),
             initial_exploration_done: false,
+            last_terrain_type: None,
         }
     }
 }
@@ -864,15 +868,9 @@ pub fn mark_tiles_explored_system(
         for tile_coord in visible_coords {
             if let Some(tile) = map.get_tile(&tile_coord) {
                 if !tile.is_explored() {
-                    let terrain_symbol = get_terrain_symbol(tile.terrain_type);
                     let mut explored_tile = tile.clone();
                     explored_tile.explore();
                     map.set_tile(tile_coord, explored_tile);
-
-                    info!(
-                        "🔍 Explored new tile at ({}, {}) - {}",
-                        tile_coord.x, tile_coord.y, terrain_symbol
-                    );
                 }
             }
         }
@@ -920,5 +918,57 @@ mod tests {
         assert_eq!(get_terrain_height_offset(TerrainType::Plains), 0.0);
         assert!(get_terrain_height_offset(TerrainType::Mountains) > 0.0);
         assert!(get_terrain_height_offset(TerrainType::Ocean) < 0.0);
+    }
+}
+
+/// System to detect terrain changes and trigger ambient audio updates
+fn detect_player_terrain_changes(
+    map_resource: Res<MapResource>,
+    player_resource: Res<PlayerResource>,
+    mut render_state: ResMut<RenderState>,
+    mut terrain_events: EventWriter<TerrainChangeEvent>,
+) {
+    // Only check if we have both map and player data
+    if !player_resource.has_player() || !map_resource.has_map() {
+        return;
+    }
+
+    let current_position = player_resource.player_position().unwrap_or_default();
+    let tile_coord =
+        TileCoordinate::new(current_position.x, current_position.y, current_position.z);
+
+    // Get the current terrain type
+    if let Some(map) = &map_resource.current_map {
+        if let Some(tile) = map.get_tile(&tile_coord) {
+            let current_terrain = tile.terrain_type;
+
+            // Check if terrain has changed
+            let terrain_changed = match render_state.last_terrain_type {
+                Some(last_terrain) => {
+                    std::mem::discriminant(&last_terrain)
+                        != std::mem::discriminant(&current_terrain)
+                }
+                None => true, // First time detection
+            };
+
+            if terrain_changed {
+                info!(
+                    "🌍 Player moved to {} terrain at ({}, {}, {})",
+                    crate::domain::constants::get_terrain_name(&current_terrain),
+                    current_position.x,
+                    current_position.y,
+                    current_position.z
+                );
+
+                // Send terrain change event for ambient audio
+                terrain_events.write(TerrainChangeEvent {
+                    new_terrain: current_terrain,
+                    fade_duration: Some(1.5), // Smooth 1.5 second transition
+                });
+
+                // Update our tracked terrain type
+                render_state.last_terrain_type = Some(current_terrain);
+            }
+        }
     }
 }

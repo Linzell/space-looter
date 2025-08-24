@@ -1,734 +1,349 @@
-//! Audio domain entities and value objects for Space Looter
-//!
-//! This module defines the core audio concepts, including sound effects,
-//! music tracks, and audio events that drive the game's audio experience.
-
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::Duration;
-use thiserror::Error;
+use std::time::SystemTime;
 use uuid::Uuid;
 
-use crate::domain::value_objects::position::Position3D;
+pub type AudioId = String;
+pub type PlaybackId = String;
 
-/// Unique identifier for audio entities
-pub type AudioId = Uuid;
-
-/// Errors that can occur in audio domain operations
-#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, thiserror::Error, Serialize, Deserialize)]
 pub enum AudioError {
-    #[error("Audio asset not found: {asset_id}")]
-    AssetNotFound { asset_id: String },
-
-    #[error("Invalid audio configuration: {message}")]
+    #[error("Asset not found: {asset_id}")]
+    AssetNotFound { asset_id: AudioId },
+    #[error("Invalid configuration: {message}")]
     InvalidConfiguration { message: String },
-
-    #[error("Audio playback failed: {reason}")]
+    #[error("Playback failed: {reason}")]
     PlaybackFailed { reason: String },
-
-    #[error("Volume out of range: {volume} (must be 0.0-1.0)")]
+    #[error("Invalid volume: {volume}")]
     InvalidVolume { volume: f32 },
-
-    #[error("Audio format not supported: {format}")]
-    UnsupportedFormat { format: String },
 }
 
-/// Audio asset entity representing a sound file or music track
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioAsset {
-    id: AudioId,
-    name: String,
-    file_path: String,
-    asset_type: AudioAssetType,
-    category: AudioCategory,
-    duration: Option<Duration>,
-    is_looping: bool,
-    default_volume: Volume,
-    priority: AudioPriority,
-    metadata: AudioMetadata,
-    created_at: DateTime<Utc>,
-    version: u64,
+    pub id: AudioId,
+    pub name: String,
+    pub file_path: String,
+    pub asset_type: AudioAssetType,
+    pub default_volume: Volume,
+    pub is_looping: bool,
+    pub created_at: SystemTime,
 }
 
 impl AudioAsset {
-    /// Create a new audio asset
-    pub fn new(
-        name: String,
-        file_path: String,
-        asset_type: AudioAssetType,
-        category: AudioCategory,
-    ) -> Self {
+    pub fn new(name: String, file_path: String, asset_type: AudioAssetType) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             name,
             file_path,
             asset_type,
-            category,
-            duration: None,
+            default_volume: Volume::default(),
             is_looping: false,
-            default_volume: Volume::new(0.7).unwrap(),
-            priority: AudioPriority::Normal,
-            metadata: AudioMetadata::default(),
-            created_at: Utc::now(),
-            version: 1,
+            created_at: SystemTime::now(),
         }
     }
 
-    /// Set duration for the audio asset
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration = Some(duration);
-        self.version += 1;
-        self
-    }
-
-    /// Set looping behavior
-    pub fn with_looping(mut self, is_looping: bool) -> Self {
-        self.is_looping = is_looping;
-        self.version += 1;
-        self
-    }
-
-    /// Set default volume
     pub fn with_volume(mut self, volume: Volume) -> Self {
         self.default_volume = volume;
-        self.version += 1;
         self
     }
 
-    /// Set audio priority
-    pub fn with_priority(mut self, priority: AudioPriority) -> Self {
-        self.priority = priority;
-        self.version += 1;
+    pub fn with_looping(mut self, looping: bool) -> Self {
+        self.is_looping = looping;
         self
-    }
-
-    /// Set metadata
-    pub fn with_metadata(mut self, metadata: AudioMetadata) -> Self {
-        self.metadata = metadata;
-        self.version += 1;
-        self
-    }
-
-    // Getters
-    pub fn id(&self) -> AudioId {
-        self.id
-    }
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn file_path(&self) -> &str {
-        &self.file_path
-    }
-    pub fn asset_type(&self) -> &AudioAssetType {
-        &self.asset_type
-    }
-    pub fn category(&self) -> &AudioCategory {
-        &self.category
-    }
-    pub fn duration(&self) -> Option<Duration> {
-        self.duration
-    }
-    pub fn is_looping(&self) -> bool {
-        self.is_looping
-    }
-    pub fn default_volume(&self) -> &Volume {
-        &self.default_volume
-    }
-    pub fn priority(&self) -> &AudioPriority {
-        &self.priority
-    }
-    pub fn metadata(&self) -> &AudioMetadata {
-        &self.metadata
-    }
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-    pub fn version(&self) -> u64 {
-        self.version
     }
 }
 
-/// Types of audio assets
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AudioAssetType {
-    /// Music track (typically longer, looping)
+    /// Background ambient music (always playing)
+    Ambient,
+    /// Random playlist music
     Music,
-    /// Sound effect (typically short, one-shot)
+    /// Sound effects
     SoundEffect,
-    /// Ambient sound (environmental, looping)
-    Ambient,
-    /// Voice/dialogue
-    Voice,
 }
 
-/// Audio categories for organization and mixing
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AudioCategory {
-    // Music categories
-    Music,
-    Ambient,
-
-    // SFX categories
-    Movement,
-    Dice,
-    Events,
-    UI,
-    Resources,
-    Combat,
-    Environmental,
-
-    // Voice categories
-    Dialogue,
-    Narrator,
-}
-
-/// Audio priority for playback management
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum AudioPriority {
-    Low = 0,
-    Normal = 1,
-    High = 2,
-    Critical = 3,
-}
-
-/// Volume value object with validation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Volume {
     value: f32,
 }
 
 impl Volume {
-    /// Create a new volume (0.0 to 1.0)
     pub fn new(value: f32) -> Result<Self, AudioError> {
-        if value < 0.0 || value > 1.0 {
+        if !(0.0..=1.0).contains(&value) {
             return Err(AudioError::InvalidVolume { volume: value });
         }
         Ok(Self { value })
     }
 
-    /// Create silent volume
     pub fn silent() -> Self {
         Self { value: 0.0 }
     }
 
-    /// Create maximum volume
     pub fn max() -> Self {
         Self { value: 1.0 }
     }
 
-    /// Get the raw volume value
     pub fn value(&self) -> f32 {
         self.value
     }
 
-    /// Multiply by another volume (for mixing)
-    pub fn multiply(&self, other: &Volume) -> Volume {
-        Volume {
-            value: (self.value * other.value).min(1.0),
+    pub fn multiply(&self, other: Volume) -> Self {
+        Self {
+            value: (self.value * other.value).clamp(0.0, 1.0),
         }
     }
 }
 
 impl Default for Volume {
     fn default() -> Self {
-        Self { value: 1.0 }
+        Self { value: 0.7 }
     }
 }
 
-/// Audio metadata for additional information
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AudioMetadata {
-    pub tags: Vec<String>,
-    pub description: String,
-    pub author: Option<String>,
-    pub license: Option<String>,
-    pub sample_rate: Option<u32>,
-    pub bit_depth: Option<u32>,
-    pub channels: Option<u32>,
-    pub file_size_bytes: Option<u64>,
-}
-
-impl Default for AudioMetadata {
-    fn default() -> Self {
-        Self {
-            tags: Vec::new(),
-            description: String::new(),
-            author: None,
-            license: None,
-            sample_rate: None,
-            bit_depth: None,
-            channels: None,
-            file_size_bytes: None,
-        }
-    }
-}
-
-/// Audio playback instance entity
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioPlayback {
-    id: AudioId,
-    asset_id: AudioId,
-    playback_type: PlaybackType,
-    volume: Volume,
-    position: Option<Position3D>,
-    started_at: DateTime<Utc>,
-    duration: Option<Duration>,
-    fade_in: Option<FadeSettings>,
-    fade_out: Option<FadeSettings>,
-    state: PlaybackState,
-    loop_count: u32,
-    metadata: HashMap<String, String>,
-    version: u64,
+    pub id: PlaybackId,
+    pub asset_id: AudioId,
+    pub volume: Volume,
+    pub state: PlaybackState,
+    pub started_at: SystemTime,
 }
 
 impl AudioPlayback {
-    /// Create a new audio playback instance
-    pub fn new(asset_id: AudioId, playback_type: PlaybackType, volume: Volume) -> Self {
+    pub fn new(asset_id: AudioId, volume: Volume) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             asset_id,
-            playback_type,
             volume,
-            position: None,
-            started_at: Utc::now(),
-            duration: None,
-            fade_in: None,
-            fade_out: None,
             state: PlaybackState::Playing,
-            loop_count: 0,
-            metadata: HashMap::new(),
-            version: 1,
+            started_at: SystemTime::now(),
         }
     }
 
-    /// Set spatial position for 3D audio
-    pub fn with_position(mut self, position: Position3D) -> Self {
-        self.position = Some(position);
-        self.version += 1;
-        self
-    }
-
-    /// Set fade in effect
-    pub fn with_fade_in(mut self, fade: FadeSettings) -> Self {
-        self.fade_in = Some(fade);
-        self.version += 1;
-        self
-    }
-
-    /// Set fade out effect
-    pub fn with_fade_out(mut self, fade: FadeSettings) -> Self {
-        self.fade_out = Some(fade);
-        self.version += 1;
-        self
-    }
-
-    /// Set playback duration (for limiting loops)
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration = Some(duration);
-        self.version += 1;
-        self
-    }
-
-    /// Pause playback
     pub fn pause(&mut self) {
         self.state = PlaybackState::Paused;
-        self.version += 1;
     }
 
-    /// Resume playback
     pub fn resume(&mut self) {
         self.state = PlaybackState::Playing;
-        self.version += 1;
     }
 
-    /// Stop playback
     pub fn stop(&mut self) {
         self.state = PlaybackState::Stopped;
-        self.version += 1;
     }
 
-    /// Increment loop count
-    pub fn increment_loop(&mut self) {
-        self.loop_count += 1;
-        self.version += 1;
-    }
-
-    /// Update volume
     pub fn set_volume(&mut self, volume: Volume) {
         self.volume = volume;
-        self.version += 1;
-    }
-
-    // Getters
-    pub fn id(&self) -> AudioId {
-        self.id
-    }
-    pub fn asset_id(&self) -> AudioId {
-        self.asset_id
-    }
-    pub fn playback_type(&self) -> &PlaybackType {
-        &self.playback_type
-    }
-    pub fn volume(&self) -> &Volume {
-        &self.volume
-    }
-    pub fn position(&self) -> Option<Position3D> {
-        self.position
-    }
-    pub fn started_at(&self) -> DateTime<Utc> {
-        self.started_at
-    }
-    pub fn duration(&self) -> Option<Duration> {
-        self.duration
-    }
-    pub fn fade_in(&self) -> Option<&FadeSettings> {
-        self.fade_in.as_ref()
-    }
-    pub fn fade_out(&self) -> Option<&FadeSettings> {
-        self.fade_out.as_ref()
-    }
-    pub fn state(&self) -> &PlaybackState {
-        &self.state
-    }
-    pub fn loop_count(&self) -> u32 {
-        self.loop_count
-    }
-    pub fn version(&self) -> u64 {
-        self.version
     }
 }
 
-/// Types of audio playback
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum PlaybackType {
-    /// Play once and stop
-    OneShot,
-    /// Loop indefinitely
-    Loop,
-    /// Loop for a specific number of times
-    LoopCount(u32),
-    /// Play for a specific duration then stop
-    TimedPlay(Duration),
-}
-
-/// Audio playback state
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlaybackState {
     Playing,
     Paused,
     Stopped,
-    Fading,
 }
 
-/// Fade in/out settings
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FadeSettings {
-    pub duration: Duration,
-    pub curve: FadeCurve,
+/// Simplified music system with ambient + random playlist
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MusicSystem {
+    /// Always playing ambient music
+    pub ambient_track: Option<AudioId>,
+    /// Random playlist of music tracks
+    pub music_playlist: Vec<AudioId>,
+    /// Currently playing music track (from playlist)
+    pub current_music: Option<AudioId>,
+    /// Master volume for all music
+    pub music_volume: Volume,
+    /// Volume for ambient track
+    pub ambient_volume: Volume,
+    /// Last played track index to avoid immediate repeats
+    pub last_track_index: Option<usize>,
 }
 
-/// Fade curve types
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum FadeCurve {
-    Linear,
-    Exponential,
-    Logarithmic,
-    Sine,
-}
-
-/// Audio event for triggering sounds based on game events
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AudioEvent {
-    id: AudioId,
-    name: String,
-    trigger: AudioTrigger,
-    actions: Vec<AudioAction>,
-    conditions: Vec<AudioCondition>,
-    cooldown: Option<Duration>,
-    last_triggered: Option<DateTime<Utc>>,
-    is_active: bool,
-    priority: AudioPriority,
-    version: u64,
-}
-
-impl AudioEvent {
-    /// Create a new audio event
-    pub fn new(name: String, trigger: AudioTrigger) -> Self {
+impl MusicSystem {
+    pub fn new() -> Self {
         Self {
-            id: Uuid::new_v4(),
-            name,
-            trigger,
-            actions: Vec::new(),
-            conditions: Vec::new(),
-            cooldown: None,
-            last_triggered: None,
-            is_active: true,
-            priority: AudioPriority::Normal,
-            version: 1,
+            ambient_track: None,
+            music_playlist: Vec::new(),
+            current_music: None,
+            music_volume: Volume::default(),
+            ambient_volume: Volume::new(0.3).unwrap(),
+            last_track_index: None,
         }
     }
 
-    /// Add an audio action
-    pub fn with_action(mut self, action: AudioAction) -> Self {
-        self.actions.push(action);
-        self.version += 1;
-        self
+    pub fn set_ambient_track(&mut self, track_id: AudioId) {
+        self.ambient_track = Some(track_id);
     }
 
-    /// Add a condition
-    pub fn with_condition(mut self, condition: AudioCondition) -> Self {
-        self.conditions.push(condition);
-        self.version += 1;
-        self
+    pub fn add_music_track(&mut self, track_id: AudioId) {
+        self.music_playlist.push(track_id);
     }
 
-    /// Set cooldown period
-    pub fn with_cooldown(mut self, cooldown: Duration) -> Self {
-        self.cooldown = Some(cooldown);
-        self.version += 1;
-        self
-    }
-
-    /// Check if event can be triggered (considering cooldown)
-    pub fn can_trigger(&self) -> bool {
-        if !self.is_active {
-            return false;
+    pub fn get_next_random_track(&mut self) -> Option<AudioId> {
+        if self.music_playlist.is_empty() {
+            return None;
         }
 
-        if let (Some(cooldown), Some(last_triggered)) = (self.cooldown, self.last_triggered) {
-            let elapsed = Utc::now().signed_duration_since(last_triggered);
-            if elapsed.to_std().unwrap_or(Duration::ZERO) < cooldown {
-                return false;
+        if self.music_playlist.len() == 1 {
+            self.last_track_index = Some(0);
+            return Some(self.music_playlist[0].clone());
+        }
+
+        // Simple random selection avoiding immediate repeats
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let mut index = rng.gen_range(0..self.music_playlist.len());
+
+        // Avoid repeating the last track if possible
+        if let Some(last_index) = self.last_track_index {
+            if index == last_index && self.music_playlist.len() > 1 {
+                index = (index + 1) % self.music_playlist.len();
             }
         }
 
-        true
+        self.last_track_index = Some(index);
+        self.current_music = Some(self.music_playlist[index].clone());
+        Some(self.music_playlist[index].clone())
     }
 
-    /// Mark event as triggered
-    pub fn mark_triggered(&mut self) {
-        self.last_triggered = Some(Utc::now());
-        self.version += 1;
+    pub fn set_music_volume(&mut self, volume: Volume) {
+        self.music_volume = volume;
     }
 
-    /// Enable/disable event
-    pub fn set_active(&mut self, active: bool) {
-        self.is_active = active;
-        self.version += 1;
-    }
-
-    // Getters
-    pub fn id(&self) -> AudioId {
-        self.id
-    }
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn trigger(&self) -> &AudioTrigger {
-        &self.trigger
-    }
-    pub fn actions(&self) -> &[AudioAction] {
-        &self.actions
-    }
-    pub fn conditions(&self) -> &[AudioCondition] {
-        &self.conditions
-    }
-    pub fn cooldown(&self) -> Option<Duration> {
-        self.cooldown
-    }
-    pub fn last_triggered(&self) -> Option<DateTime<Utc>> {
-        self.last_triggered
-    }
-    pub fn is_active(&self) -> bool {
-        self.is_active
-    }
-    pub fn priority(&self) -> &AudioPriority {
-        &self.priority
-    }
-    pub fn version(&self) -> u64 {
-        self.version
+    pub fn set_ambient_volume(&mut self, volume: Volume) {
+        self.ambient_volume = volume;
     }
 }
 
-/// Audio trigger conditions
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AudioTrigger {
-    /// Movement-related events
+impl Default for MusicSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Progression-based music adaptation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MusicProgression {
+    pub danger_level: f32,         // 0.0 to 1.0
+    pub exploration_progress: f32, // 0.0 to 1.0
+    pub current_area_type: AreaType,
+    pub current_terrain_type: Option<TerrainType>, // For terrain-specific ambient
+    pub music_system: MusicSystem,
+}
+
+impl MusicProgression {
+    pub fn new() -> Self {
+        Self {
+            danger_level: 0.0,
+            exploration_progress: 0.0,
+            current_area_type: AreaType::Space,
+            current_terrain_type: None,
+            music_system: MusicSystem::new(),
+        }
+    }
+
+    /// Call this during progression to adapt music
+    pub fn adapt_to_progression(&mut self, danger: f32, exploration: f32, area: AreaType) {
+        self.danger_level = danger.clamp(0.0, 1.0);
+        self.exploration_progress = exploration.clamp(0.0, 1.0);
+        self.current_area_type = area;
+
+        // Adapt volumes based on progression
+        let base_music_volume = 0.7;
+        let tension_modifier = self.danger_level * 0.3; // Increase volume with danger
+        let new_music_volume = (base_music_volume + tension_modifier).clamp(0.0, 1.0);
+
+        self.music_system
+            .set_music_volume(Volume::new(new_music_volume).unwrap());
+
+        // Ambient volume stays more consistent but can be slightly affected
+        let ambient_modifier = self.danger_level * 0.1;
+        let new_ambient_volume = (0.3 + ambient_modifier).clamp(0.0, 1.0);
+        self.music_system
+            .set_ambient_volume(Volume::new(new_ambient_volume).unwrap());
+    }
+
+    /// Update current terrain for ambient audio adaptation
+    pub fn update_terrain(&mut self, terrain: TerrainType) {
+        self.current_terrain_type = Some(terrain);
+
+        // Adjust ambient volume based on terrain characteristics
+        let terrain_volume_modifier = match terrain {
+            TerrainType::Ocean | TerrainType::Swamp => 0.4, // Louder natural sounds
+            TerrainType::Desert | TerrainType::Tundra => 0.2, // Quieter, sparse sounds
+            TerrainType::Volcanic | TerrainType::Anomaly => 0.5, // Prominent atmospheric sounds
+            TerrainType::Cave | TerrainType::Crystal => 0.35, // Echoing, resonant sounds
+            _ => 0.3,                                       // Default ambient volume
+        };
+
+        let danger_modifier = self.danger_level * 0.1;
+        let final_ambient_volume = (terrain_volume_modifier + danger_modifier).clamp(0.0, 1.0);
+
+        self.music_system
+            .set_ambient_volume(Volume::new(final_ambient_volume).unwrap());
+    }
+
+    pub fn should_change_music(&self) -> bool {
+        // Simple logic: change music based on danger level changes
+        // This could be expanded with more sophisticated logic
+        true
+    }
+}
+
+impl Default for MusicProgression {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AreaType {
+    Space,
+    Asteroid,
+    Station,
+    Nebula,
+    Anomaly,
+}
+
+/// Re-export TerrainType for audio system compatibility
+pub use crate::domain::value_objects::terrain::TerrainType;
+
+/// Sound effects trigger system (kept simple)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoundTrigger {
+    pub trigger_type: TriggerType,
+    pub sound_id: AudioId,
+    pub volume: Volume,
+}
+
+#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub enum TriggerType {
+    // Movement
     MovementSuccess,
     MovementFailure,
-    MovementBlocked,
-    FootstepMetal,
-    FootstepRock,
-    FootstepSand,
-    TeleportEnter,
-    TeleportExit,
 
-    /// Dice roll events
+    // Dice
     DiceRoll,
     DiceCriticalSuccess,
     DiceCriticalFailure,
-    DiceHighRoll,
-    DiceLowRoll,
 
-    /// Resource Discovery events
-    ResourceDiscovery,
+    // Resources
     ResourceFound,
-    RareResourceFound,
-    CrystalChime,
-    MetalClank,
-    OrganicSquelch,
     ResourceGain,
-    ResourceLoss,
-    InventoryFull,
 
-    /// Combat & Encounter events
-    EnemyApproach,
-    CombatStart,
+    // Combat
     CombatHit,
-    CombatMiss,
     EnemyDefeated,
-    PlayerDamage,
 
-    /// Environmental events
-    WindHowl,
-    EnergyHum,
-    MachineryWhir,
-    CaveEcho,
-    SpaceSilence,
-    TerrainChange,
-    WeatherChange,
-    TimeOfDay,
-
-    /// Rest & Recovery events
-    RestStart,
-    RestComplete,
-    RestDisturbed,
-    SleepDisturbed,
-    HealthRestore,
-
-    /// UI events
+    // UI
     ButtonClick,
-    ButtonHover,
     MenuOpen,
-    MenuClose,
-    Notification,
-    Warning,
-    Error,
     Achievement,
-    LevelUp,
 
-    /// Resource Management events
-    CraftSuccess,
-    TradeComplete,
-
-    /// Music layer events
-    MusicAmbientSpace,
-    MusicMenuTheme,
-    MusicTensionDiscovery,
-    MusicCombatEncounter,
-    MusicPeacefulRest,
-    MusicMysteryAmbient,
-    MusicVictorySuccess,
-
-    /// Adaptive Music Layers
-    MusicBaseLayer,
-    MusicTensionLayer,
-    MusicDiscoveryLayer,
-    MusicDangerLayer,
-
-    /// Custom event by name
-    Custom(String),
-}
-
-/// Actions to perform when audio event is triggered
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum AudioAction {
-    /// Play a specific audio asset
-    PlayAsset {
-        asset_id: AudioId,
-        volume: Option<Volume>,
-        position: Option<Position3D>,
-        playback_type: PlaybackType,
-    },
-
-    /// Stop audio playback
-    StopAsset { asset_id: AudioId },
-
-    /// Stop all audio in a category
-    StopCategory { category: AudioCategory },
-
-    /// Change volume of playing audio
-    ChangeVolume { asset_id: AudioId, volume: Volume },
-
-    /// Change volume of entire category
-    ChangeCategoryVolume {
-        category: AudioCategory,
-        volume: Volume,
-    },
-
-    /// Fade in audio
-    FadeIn {
-        asset_id: AudioId,
-        fade: FadeSettings,
-    },
-
-    /// Fade out audio
-    FadeOut {
-        asset_id: AudioId,
-        fade: FadeSettings,
-    },
-
-    /// Switch background music
-    SwitchMusic {
-        asset_id: AudioId,
-        fade_duration: Option<Duration>,
-    },
-}
-
-/// Conditions that must be met for audio event to trigger
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum AudioCondition {
-    /// Volume level condition
-    VolumeAbove {
-        category: AudioCategory,
-        threshold: Volume,
-    },
-    VolumeBelow {
-        category: AudioCategory,
-        threshold: Volume,
-    },
-
-    /// Playback state condition
-    IsPlaying {
-        asset_id: AudioId,
-    },
-    IsNotPlaying {
-        asset_id: AudioId,
-    },
-
-    /// Time-based condition
-    TimeOfDay {
-        start_hour: u8,
-        end_hour: u8,
-    },
-
-    /// Position-based condition
-    WithinDistance {
-        position: Position3D,
-        max_distance: f32,
-    },
-
-    /// Random chance condition
-    RandomChance {
-        probability: f32,
-    }, // 0.0 to 1.0
-
-    /// Custom condition by name
-    Custom {
-        name: String,
-        parameters: HashMap<String, String>,
-    },
+    // Environment
+    Environmental,
 }
 
 #[cfg(test)]
@@ -738,66 +353,41 @@ mod tests {
     #[test]
     fn audio_asset_creation() {
         let asset = AudioAsset::new(
-            "test_sound".to_string(),
-            "audio/test.ogg".to_string(),
-            AudioAssetType::SoundEffect,
-            AudioCategory::UI,
+            "test_music".to_string(),
+            "assets/music/test.ogg".to_string(),
+            AudioAssetType::Music,
         );
 
-        assert_eq!(asset.name(), "test_sound");
-        assert_eq!(asset.file_path(), "audio/test.ogg");
-        assert_eq!(asset.asset_type(), &AudioAssetType::SoundEffect);
-        assert_eq!(asset.category(), &AudioCategory::UI);
-        assert!(!asset.is_looping());
-        assert_eq!(asset.default_volume().value(), 0.7);
-        assert_eq!(asset.version(), 1);
+        assert_eq!(asset.name, "test_music");
+        assert_eq!(asset.file_path, "assets/music/test.ogg");
+        assert_eq!(asset.default_volume.value(), 0.7);
+    }
+
+    #[test]
+    fn music_system_random_selection() {
+        let mut system = MusicSystem::new();
+        system.add_music_track("track1".to_string());
+        system.add_music_track("track2".to_string());
+        system.add_music_track("track3".to_string());
+
+        let track = system.get_next_random_track();
+        assert!(track.is_some());
+        assert!(system.music_playlist.contains(&track.unwrap()));
     }
 
     #[test]
     fn volume_validation() {
-        assert!(Volume::new(0.5).is_ok());
-        assert!(Volume::new(0.0).is_ok());
-        assert!(Volume::new(1.0).is_ok());
         assert!(Volume::new(-0.1).is_err());
         assert!(Volume::new(1.1).is_err());
+        assert!(Volume::new(0.5).is_ok());
     }
 
     #[test]
-    fn volume_multiplication() {
-        let vol1 = Volume::new(0.8).unwrap();
-        let vol2 = Volume::new(0.5).unwrap();
-        let result = vol1.multiply(&vol2);
-        assert_eq!(result.value(), 0.4);
-    }
+    fn progression_adaptation() {
+        let mut progression = MusicProgression::new();
+        progression.adapt_to_progression(0.8, 0.5, AreaType::Asteroid);
 
-    #[test]
-    fn audio_event_cooldown() {
-        let mut event = AudioEvent::new("test_event".to_string(), AudioTrigger::DiceRoll)
-            .with_cooldown(Duration::from_secs(5));
-
-        assert!(event.can_trigger());
-
-        event.mark_triggered();
-        assert!(!event.can_trigger()); // Should be on cooldown
-    }
-
-    #[test]
-    fn playback_state_management() {
-        let mut playback = AudioPlayback::new(
-            Uuid::new_v4(),
-            PlaybackType::OneShot,
-            Volume::new(0.8).unwrap(),
-        );
-
-        assert_eq!(playback.state(), &PlaybackState::Playing);
-
-        playback.pause();
-        assert_eq!(playback.state(), &PlaybackState::Paused);
-
-        playback.resume();
-        assert_eq!(playback.state(), &PlaybackState::Playing);
-
-        playback.stop();
-        assert_eq!(playback.state(), &PlaybackState::Stopped);
+        assert_eq!(progression.danger_level, 0.8);
+        assert!(progression.music_system.music_volume.value() > 0.7);
     }
 }

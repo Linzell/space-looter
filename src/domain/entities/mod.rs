@@ -14,7 +14,7 @@ pub mod quest;
 pub mod resource;
 
 // Re-export all entity types for convenience
-pub use audio::{AudioAsset, AudioEvent, AudioPlayback};
+pub use audio::{AudioAsset, AudioPlayback};
 pub use base::{Base, BaseBuilding, BaseLevel};
 pub use event::{Event, EventType};
 pub use game::GameSession;
