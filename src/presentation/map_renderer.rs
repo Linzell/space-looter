@@ -34,8 +34,7 @@ impl Plugin for MapRendererPlugin {
                     initial_map_render_system,
                     detect_player_terrain_changes,
                 )
-                    .chain()
-                    .after(crate::rpg_exploration_system),
+                    .chain(),
             )
             .init_resource::<TerrainMaterials>()
             .init_resource::<RenderState>();

@@ -406,6 +406,9 @@ pub const AUDIO_DICE_CRITICAL_FAILURE: &str = "audio/sfx/dice/dice_critical_fail
 pub const AUDIO_DICE_HIGH_ROLL: &str = "audio/sfx/dice/dice_high_roll.wav";
 pub const AUDIO_DICE_LOW_ROLL: &str = "audio/sfx/dice/dice_low_roll.wav";
 
+// Dice Sound Timing
+pub const DICE_SOUND_DELAY_MS: u64 = 500; // 0.5 second delay before dice sound
+
 // Movement Sound Effects
 pub const AUDIO_MOVEMENT_STEP: &str = "audio/sfx/movement/footstep_metal.wav";
 pub const AUDIO_MOVEMENT_SUCCESS: &str = "audio/sfx/movement/movement_success.wav";

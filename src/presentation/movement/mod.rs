@@ -92,8 +92,8 @@ impl Plugin for SmoothMovementPlugin {
         app.add_systems(
             Update,
             (
-                handle_player_movement_input.before(crate::rpg_exploration_system),
-                handle_click_movement_input.before(crate::rpg_exploration_system),
+                handle_player_movement_input,
+                handle_click_movement_input,
                 update_movement_animations,
                 start_movement_transitions,
                 update_camera_following,

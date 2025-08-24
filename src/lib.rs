@@ -252,19 +252,15 @@ fn configure_rpg_app(app: &mut App) {
     );
 
     // Add core RPG update systems
-    app.add_systems(
-        Update,
-        (
-            // Core gameplay systems
-            rpg_turn_management_system,
-            rpg_exploration_system,
-            rpg_dice_mechanics_system,
-            // UI and presentation systems
-            handle_window_resize_system,
-            rpg_state_transition_system,
-            // Audio management now handled by terrain-based ambient system
-        ),
-    );
+    // Add systems individually to avoid complex tuple signature issues
+    app.add_systems(Update, rpg_turn_management_system);
+    app.add_systems(Update, rpg_exploration_system);
+    app.add_systems(Update, rpg_dice_mechanics_system);
+    app.add_systems(Update, handle_window_resize_system);
+    app.add_systems(Update, rpg_state_transition_system);
+
+    // Add dice sound timer system
+    app.add_systems(Update, dice_sound_timer_system);
 
     // Add RPG-specific system sets for better organization
     app.configure_sets(
@@ -292,6 +288,32 @@ pub enum RpgSystemSet {
     Dice,
     /// UI updates and rendering
     UI,
+}
+
+/// Component for delayed dice sound playback
+#[derive(Component)]
+struct DiceSoundTimer {
+    timer: Timer,
+    audio_handle: Handle<AudioSource>,
+}
+
+/// System to handle delayed dice sound playback
+fn dice_sound_timer_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut DiceSoundTimer)>,
+) {
+    for (entity, mut dice_timer) in query.iter_mut() {
+        dice_timer.timer.tick(time.delta());
+
+        if dice_timer.timer.just_finished() {
+            // Play the dice sound
+            commands.spawn(AudioPlayer::new(dice_timer.audio_handle.clone()));
+
+            // Remove the timer component
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 /// Setup cameras for RPG (2D tile view)
@@ -539,6 +561,18 @@ pub fn rpg_exploration_system(
                 player_level,
             ) {
                 Ok(movement_result) => {
+                    // Schedule dice roll sound with delay
+                    if let Some(audio_assets) = &audio_assets {
+                        if let Some(dice_handle) = &audio_assets.dice_roll {
+                            commands.spawn((DiceSoundTimer {
+                                timer: Timer::from_seconds(
+                                    crate::domain::constants::DICE_SOUND_DELAY_MS as f32 / 1000.0,
+                                    TimerMode::Once,
+                                ),
+                                audio_handle: dice_handle.clone(),
+                            },));
+                        }
+                    }
                     // Log dice roll result - console only (debug)
                     info!("🎲 {}", movement_result.dice_result.description());
                     info!(
