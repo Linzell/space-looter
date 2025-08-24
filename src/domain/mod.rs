@@ -23,6 +23,7 @@
 //! - Comprehensive error handling
 //! - All mechanics based on dice rolls
 
+pub mod constants;
 pub mod entities;
 pub mod services;
 pub mod value_objects;
@@ -387,110 +388,6 @@ impl WorldBoundaries {
             self.max_z - self.min_z + 1,
         )
     }
-}
-
-/// Game configuration constants for RPG mechanics
-pub mod constants {
-    use crate::domain::value_objects::{DiceType, ResourceType};
-
-    /// Default movement dice type
-    pub const MOVEMENT_DICE: DiceType = DiceType::D6;
-
-    /// Default action dice type
-    pub const ACTION_DICE: DiceType = DiceType::D20;
-
-    /// Default resource gathering dice type
-    pub const RESOURCE_DICE: DiceType = DiceType::D10;
-
-    /// Default event trigger dice type
-    pub const EVENT_DICE: DiceType = DiceType::D100;
-
-    /// Minimum dice roll for success (varies by action)
-    pub const MIN_SUCCESS_ROLL: u8 = 10;
-
-    /// Critical success threshold
-    pub const CRITICAL_SUCCESS_THRESHOLD: u8 = 18;
-
-    /// Critical failure threshold
-    pub const CRITICAL_FAILURE_THRESHOLD: u8 = 2;
-
-    /// Base movement points per turn
-    pub const BASE_MOVEMENT_POINTS: u8 = 3;
-
-    /// Base action points per turn
-    pub const BASE_ACTION_POINTS: u8 = 2;
-
-    /// Starting player level
-    pub const STARTING_PLAYER_LEVEL: u32 = 1;
-
-    /// Max player level
-    pub const MAX_PLAYER_LEVEL: u32 = 20;
-
-    /// Experience points needed for level 2
-    pub const BASE_EXPERIENCE_REQUIREMENT: u32 = 100;
-
-    /// Experience multiplier per level
-    pub const EXPERIENCE_MULTIPLIER: f32 = 1.5;
-
-    /// Starting resources for new bases
-    pub const STARTING_RESOURCES: [(ResourceType, i32); 4] = [
-        (ResourceType::Metal, 50),
-        (ResourceType::Energy, 30),
-        (ResourceType::Food, 20),
-        (ResourceType::Technology, 5),
-    ];
-
-    /// Resource gathering time in seconds
-    pub const RESOURCE_GATHERING_TIME: u32 = 10;
-
-    /// Event check interval in seconds
-    pub const EVENT_CHECK_INTERVAL: u32 = 30;
-
-    /// Base upgrade cost multiplier
-    pub const UPGRADE_COST_MULTIPLIER: f32 = 2.0;
-
-    /// Map chunk size for procedural generation
-    pub const MAP_CHUNK_SIZE: i32 = 16;
-
-    /// Default tile elevation
-    pub const DEFAULT_ELEVATION: i32 = 0;
-
-    /// Maximum tile elevation
-    pub const MAX_ELEVATION: i32 = 10;
-
-    /// Minimum danger level for random encounters
-    pub const MIN_ENCOUNTER_DANGER: u8 = 1;
-
-    /// Maximum danger level for random encounters
-    pub const MAX_ENCOUNTER_DANGER: u8 = 10;
-
-    /// Risk bonus multiplier for exploration
-    pub const RISK_BONUS_MULTIPLIER: f32 = 1.5;
-
-    /// Safe zone radius around base
-    pub const SAFE_ZONE_RADIUS: i32 = 5;
-
-    // Backward compatibility constants during transition
-    /// Collision detection radius for interactions
-    pub const COLLISION_RADIUS: f32 = 32.0;
-
-    /// Default player movement speed (legacy)
-    pub const DEFAULT_PLAYER_SPEED: f32 = 200.0;
-
-    /// Enemy spawn interval in seconds (legacy)
-    pub const ENEMY_SPAWN_INTERVAL: f32 = 2.0;
-
-    /// Default enemy speed (legacy)
-    pub const DEFAULT_ENEMY_SPEED: f32 = 150.0;
-
-    /// Player sprite size (width, height) (legacy)
-    pub const PLAYER_SIZE: (f32, f32) = (32.0, 32.0);
-
-    /// Enemy sprite size (width, height) (legacy)
-    pub const ENEMY_SIZE: (f32, f32) = (32.0, 32.0);
-
-    /// Points awarded per enemy destroyed (legacy)
-    pub const POINTS_PER_ENEMY: u32 = 10;
 }
 
 /// Game state tracking for turn-based mechanics

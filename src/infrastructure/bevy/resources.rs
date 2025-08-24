@@ -647,19 +647,17 @@ impl MapResource {
 
             let mut new_map = Map::new(map_id, map_name, seed).expect("Failed to create new map");
 
-            // Generate initial chunk around player position
-            let chunk_size = 20; // 20x20 tile chunks
-            if let Err(e) = new_map.generate_chunk(center_position, chunk_size) {
+            // Use MapService for generation
+            let map_service = crate::domain::services::MapService::new(seed);
+            if let Err(e) = map_service.generate_chunk(&mut new_map, center_position, 20) {
                 error!("Failed to generate map chunk: {}", e);
                 // Continue with empty map rather than failing
             }
 
-            self.current_map = Some(new_map);
+            // Ensure the immediate area is also generated
+            self.ensure_area_generated(center_position);
 
-            // Mark the chunk as loaded
-            let chunk_x = center_position.x / chunk_size;
-            let chunk_y = center_position.y / chunk_size;
-            self.mark_chunk_loaded(chunk_x, chunk_y);
+            self.current_map = Some(new_map);
 
             info!(
                 "🗺️ Generated new map sector at ({}, {})",
@@ -667,10 +665,34 @@ impl MapResource {
             );
         }
 
-        // Ensure the area around the position is generated
-        self.ensure_area_generated(center_position);
-
         self.current_map.as_ref().unwrap()
+    }
+
+    /// Get or create map around a given position (mutable reference)
+    /// This method ensures there's always a map available for gameplay
+    pub fn get_or_create_map_mut(&mut self, center_position: Position3D) -> &mut Map {
+        if self.current_map.is_none() {
+            // Create a new map with procedural generation
+            let map_id = EntityId::generate();
+            let map_name = format!(
+                "Sector {}-{}",
+                center_position.x / 100,
+                center_position.y / 100
+            );
+            let seed = ((center_position.x as u64) << 32) | (center_position.y as u64);
+
+            let mut new_map = Map::new(map_id, map_name, seed).expect("Failed to create new map");
+
+            // Use MapService for generation
+            let map_service = crate::domain::services::MapService::new(seed);
+            map_service
+                .generate_chunk(&mut new_map, center_position, 8)
+                .expect("Failed to generate map chunk");
+
+            self.current_map = Some(new_map);
+        }
+
+        self.current_map.as_mut().unwrap()
     }
 
     /// Ensure the area around a position is generated
@@ -693,7 +715,8 @@ impl MapResource {
                             position.z,
                         );
 
-                        if let Err(e) = map.generate_chunk(chunk_center, chunk_size) {
+                        let map_service = crate::domain::services::MapService::new(map.seed());
+                        if let Err(e) = map_service.generate_chunk(map, chunk_center, chunk_size) {
                             warn!(
                                 "Failed to generate chunk at ({}, {}): {}",
                                 check_chunk_x, check_chunk_y, e

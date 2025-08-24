@@ -360,7 +360,7 @@ fn rpg_turn_management_system(
 
 /// RPG tile-based exploration with dice roll events
 /// RPG exploration and movement system with dice mechanics
-fn rpg_exploration_system(
+pub fn rpg_exploration_system(
     mut player_resource: ResMut<infrastructure::bevy::resources::PlayerResource>,
     mut map_resource: ResMut<infrastructure::bevy::resources::MapResource>,
     mut game_stats: ResMut<infrastructure::bevy::resources::GameStatsResource>,
@@ -441,13 +441,13 @@ fn rpg_exploration_system(
             let player_level = player.level();
 
             // Get or generate map around player position
-            let map = map_resource.get_or_create_map(current_position);
+            let map = map_resource.get_or_create_map_mut(current_position);
 
             // Attempt tile movement with dice roll
             match tile_movement_service.attempt_movement(
                 &player,
                 target_position,
-                &map,
+                map,
                 player_level,
             ) {
                 Ok(movement_result) => {
@@ -459,9 +459,16 @@ fn rpg_exploration_system(
                     );
 
                     // Execute the movement
+                    info!("🚀 Attempting to move player to: {:?}", target_position);
+                    let current_pos_before = player_resource.player_position();
+                    info!("📍 Player position before move: {:?}", current_pos_before);
+
                     if let Ok(()) =
                         player_resource.move_player(target_position, movement_result.movement_cost)
                     {
+                        let current_pos_after = player_resource.player_position();
+                        info!("📍 Player position after move: {:?}", current_pos_after);
+
                         game_stats.record_tile_explored();
                         info!("✅ Player moved to position: {:?}", target_position);
 

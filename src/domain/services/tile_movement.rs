@@ -5,11 +5,13 @@
 //! based on the roll result and player progression.
 
 use crate::domain::entities::{Event, EventType, Map, Player};
+use crate::domain::services::MapService;
 use crate::domain::value_objects::{
     dice::{DiceModifier, DiceRoll, DiceType},
     Position3D, TileCoordinate,
 };
 use crate::domain::{DomainError, DomainResult};
+
 use rand::Rng;
 use std::collections::HashMap;
 
@@ -36,9 +38,13 @@ impl TileMovementService {
         &self,
         player: &Player,
         target_position: Position3D,
-        map: &Map,
+        map: &mut Map,
         player_level: u32,
     ) -> DomainResult<MovementResult> {
+        // Generate tiles around player position if needed
+        let map_service = MapService::new(map.seed());
+        map_service.generate_tiles_around_player(map, *player.position())?;
+
         // Check if movement is valid
         if !self.is_valid_movement(player.position(), &target_position) {
             return Err(DomainError::InvalidMapCoordinates(
@@ -73,6 +79,9 @@ impl TileMovementService {
         // Generate event based on dice result
         let event =
             self.generate_movement_event(&dice_result, &target_position, map, player_level)?;
+
+        // Update map cache for new player position
+        map.update_player_position(target_position);
 
         // Create movement result
         let result = MovementResult {
@@ -501,10 +510,10 @@ mod tests {
     fn movement_attempt_success() {
         let service = TileMovementService::new();
         let player = create_test_player();
-        let map = create_test_map();
+        let mut map = create_test_map();
         let target = Position3D::new(1, 0, 0);
 
-        let result = service.attempt_movement(&player, target, &map, 1);
+        let result = service.attempt_movement(&player, target, &mut map, 1);
         assert!(result.is_ok());
 
         let movement_result = result.unwrap();
@@ -516,10 +525,10 @@ mod tests {
     fn movement_attempt_invalid_target() {
         let service = TileMovementService::new();
         let player = create_test_player();
-        let map = create_test_map();
+        let mut map = create_test_map();
         let target = Position3D::new(2, 2, 0); // Too far
 
-        let result = service.attempt_movement(&player, target, &map, 1);
+        let result = service.attempt_movement(&player, target, &mut map, 1);
         assert!(result.is_err());
     }
 

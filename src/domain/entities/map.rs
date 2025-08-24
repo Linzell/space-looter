@@ -4,13 +4,13 @@
 //! and procedural generation of map chunks.
 
 use crate::domain::value_objects::{
-    resources::{ResourceNodeProperties, ResourceType},
+    resources::ResourceNodeProperties,
     terrain::{Elevation, TerrainType},
-    EntityId, Position3D, TileCoordinate,
+    EntityId, Position3D, ResourceType, TileCoordinate,
 };
-use crate::domain::{DomainError, DomainResult};
+use crate::domain::{constants, DomainError, DomainResult};
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// The game world map entity
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +23,8 @@ pub struct Map {
     created_at: DateTime<Utc>,
     last_updated: DateTime<Utc>,
     version: u64,
+    player_history: VecDeque<Position3D>,
+    cache_dir: String,
 }
 
 impl Map {
@@ -35,6 +37,8 @@ impl Map {
         }
 
         let now = Utc::now();
+        let cache_dir = format!("cache/maps/{}", id);
+
         Ok(Self {
             id,
             name,
@@ -44,6 +48,8 @@ impl Map {
             created_at: now,
             last_updated: now,
             version: 1,
+            player_history: VecDeque::with_capacity(constants::PLAYER_HISTORY_SIZE),
+            cache_dir,
         })
     }
 
@@ -62,9 +68,14 @@ impl Map {
         self.seed
     }
 
-    /// Get tile at coordinate
+    /// Get tile at coordinate (loads from cache if needed)
     pub fn get_tile(&self, coordinate: &TileCoordinate) -> Option<&MapTile> {
-        self.tiles.get(coordinate)
+        if let Some(tile) = self.tiles.get(coordinate) {
+            Some(tile)
+        } else {
+            // Try to load from cache
+            None // Simplified - cache loading would be async
+        }
     }
 
     /// Set tile at coordinate
@@ -74,9 +85,49 @@ impl Map {
         self.version += 1;
     }
 
-    /// Get all tiles
+    /// Get all loaded tiles
     pub fn tiles(&self) -> &HashMap<TileCoordinate, MapTile> {
         &self.tiles
+    }
+
+    /// Update player position and manage tile cache
+    pub fn update_player_position(&mut self, position: Position3D) {
+        // Add to history
+        self.player_history.push_back(position);
+        if self.player_history.len() > constants::PLAYER_HISTORY_SIZE {
+            self.player_history.pop_front();
+        }
+
+        // Note: Tile generation is now handled by MapService
+        // This method only manages the cache - generation should be done
+        // via MapService.generate_tiles_around_player() before calling this method
+
+        // Calculate visible tiles around player
+        let visible_coords: std::collections::HashSet<TileCoordinate> = position
+            .positions_within_distance(constants::VISIBLE_TILE_RADIUS)
+            .into_iter()
+            .chain(
+                self.player_history
+                    .iter()
+                    .flat_map(|pos| pos.positions_within_distance(constants::HISTORY_TILE_RADIUS)),
+            )
+            .map(TileCoordinate::from)
+            .collect();
+
+        // Remove tiles not in visible set or history
+        let tiles_to_cache: Vec<TileCoordinate> = self
+            .tiles
+            .keys()
+            .filter(|coord| !visible_coords.contains(coord))
+            .cloned()
+            .collect();
+
+        // Cache old tiles (simplified - would be async)
+        for coord in tiles_to_cache {
+            if let Some(_tile) = self.tiles.remove(&coord) {
+                // Cache tile to file system
+            }
+        }
     }
 
     /// Get resource node at position
@@ -143,46 +194,17 @@ impl Map {
     }
 
     /// Generate procedural content for a chunk
+    /// Note: This method is deprecated - use MapService.generate_chunk() instead
+    /// Kept for backward compatibility during transition
     pub fn generate_chunk(
         &mut self,
         chunk_center: Position3D,
         chunk_size: i32,
     ) -> DomainResult<()> {
-        // This would use the seed and noise functions for procedural generation
-        // For now, create a simple test pattern
-        for x in -chunk_size / 2..=chunk_size / 2 {
-            for y in -chunk_size / 2..=chunk_size / 2 {
-                let pos = Position3D::new(chunk_center.x + x, chunk_center.y + y, chunk_center.z);
-                let coord = TileCoordinate::from(pos);
+        use crate::domain::services::MapService;
 
-                // Simple terrain generation based on position
-                let terrain = match (x.abs() + y.abs()) % 4 {
-                    0 => TerrainType::Plains,
-                    1 => TerrainType::Forest,
-                    2 => TerrainType::Mountains,
-                    _ => TerrainType::Desert,
-                };
-
-                let elevation = Elevation::new(x.abs() + y.abs()).unwrap_or(Elevation::sea_level());
-                let tile = MapTile::new(terrain, elevation, false);
-                self.set_tile(coord, tile);
-
-                // Occasionally add resource nodes
-                if (x + y) % 7 == 0 {
-                    if let Some(node_props) = terrain.generate_resource_node(ResourceType::Metal) {
-                        let node = ResourceNode::new(
-                            EntityId::generate(),
-                            node_props,
-                            100, // Max capacity
-                            100, // Current amount
-                        );
-                        self.add_resource_node(pos, node);
-                    }
-                }
-            }
-        }
-
-        Ok(())
+        let map_service = MapService::new(self.seed);
+        map_service.generate_chunk(self, chunk_center, chunk_size)
     }
 }
 

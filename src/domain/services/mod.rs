@@ -18,18 +18,24 @@ pub mod audio_service;
 pub mod collision;
 pub mod font_service;
 pub mod game_log_service;
+pub mod map_service;
 pub mod resting_service;
 pub mod spawning;
+pub mod tile_cache_service;
 pub mod tile_movement;
+pub mod visibility_service;
 
 // Re-export services for convenience
 pub use audio_service::{AudioService, AudioServiceError, DefaultAudioService};
 pub use collision::CollisionService;
 pub use font_service::{FontConfig, FontService, FontSize, FontType, FontWeight};
 pub use game_log_service::{GameLogMessage, GameLogService, GameLogType, LogPriority};
+pub use map_service::{BiomeStats, BiomeType, GenerationStats, MapService};
 pub use resting_service::RestingService;
 pub use spawning::SpawningService;
+pub use tile_cache_service::{CacheStats, TileCacheService};
 pub use tile_movement::TileMovementService;
+pub use visibility_service::{VisibilityLevel, VisibilityService};
 
 #[cfg(test)]
 mod tests {
