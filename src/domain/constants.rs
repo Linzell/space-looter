@@ -28,6 +28,12 @@ pub const MAX_DICE_MODIFIER: i8 = 10;
 /// Minimum modifier that can be applied to dice rolls
 pub const MIN_DICE_MODIFIER: i8 = -10;
 
+/// Critical success threshold
+pub const CRITICAL_SUCCESS_THRESHOLD: u8 = 18;
+
+/// Critical failure threshold
+pub const CRITICAL_FAILURE_THRESHOLD: u8 = 2;
+
 // =============================================================================
 // PLAYER PROGRESSION CONSTANTS
 // =============================================================================
@@ -54,14 +60,17 @@ pub const DEFAULT_STAT_VALUE: u8 = 10;
 pub const STAT_POINTS_PER_LEVEL: u8 = 2;
 
 // =============================================================================
-// MOVEMENT AND MAP CONSTANTS
+// MOVEMENT AND ACTION POINTS CONSTANTS
 // =============================================================================
+
+/// Base movement points per turn
+pub const BASE_MOVEMENT_POINTS: u8 = 3;
+
+/// Base action points per turn
+pub const BASE_ACTION_POINTS: u8 = 2;
 
 /// Maximum movement points a player can have
 pub const MAX_MOVEMENT_POINTS: u32 = 20;
-
-/// Default movement points for new players
-pub const DEFAULT_MOVEMENT_POINTS: u32 = 10;
 
 /// Movement points regenerated per turn
 pub const MOVEMENT_REGEN_PER_TURN: u32 = 3;
@@ -72,36 +81,31 @@ pub const BASE_MOVEMENT_COST: u8 = 1;
 /// Maximum distance for valid movement (Manhattan distance)
 pub const MAX_MOVEMENT_DISTANCE: u32 = 1;
 
+// =============================================================================
+// MAP AND VISIBILITY CONSTANTS
+// =============================================================================
+
 /// Map chunk size (tiles per chunk)
 pub const MAP_CHUNK_SIZE: u32 = 16;
 
 /// Maximum map exploration radius from spawn
 pub const MAX_EXPLORATION_RADIUS: u32 = 100;
 
-/// Base movement points per turn
-pub const BASE_MOVEMENT_POINTS: u8 = 3;
+/// Radius for fully visible tiles (no fog) - plus pattern around player
+pub const FULLY_VISIBLE_RADIUS: u32 = 2;
 
-/// Base action points per turn
-pub const BASE_ACTION_POINTS: u8 = 2;
+/// Radius for fogged tiles (visible but with fog overlay) - diamond pattern
+pub const FOGGED_VISIBLE_RADIUS: u32 = 5;
 
-/// Event check interval in seconds
-pub const EVENT_CHECK_INTERVAL: u32 = 30;
+/// Extra buffer radius for tile generation (ensures tiles exist beyond visible area)
+pub const TILE_GENERATION_BUFFER: u32 = 2;
 
-/// Resource gathering time in seconds
-pub const RESOURCE_GATHERING_TIME: u32 = 10;
-
-/// Critical success threshold
-pub const CRITICAL_SUCCESS_THRESHOLD: u8 = 18;
-
-/// Critical failure threshold
-pub const CRITICAL_FAILURE_THRESHOLD: u8 = 2;
+/// Enable diamond pattern fog of war (true = diamond, false = circular)
+pub const FOG_OF_WAR_DIAMOND_PATTERN: bool = true;
 
 // =============================================================================
 // TILE CACHING CONSTANTS
 // =============================================================================
-
-/// Number of tiles to show around player (plus pattern = radius 1, only adjacent)
-pub const VISIBLE_TILE_RADIUS: u32 = 1;
 
 /// Number of player movement positions to keep in history
 pub const PLAYER_HISTORY_SIZE: usize = 10;
@@ -112,30 +116,18 @@ pub const HISTORY_TILE_RADIUS: u32 = 1;
 /// Maximum number of tiles to keep in memory
 pub const MAX_LOADED_TILES: usize = 200;
 
+/// Tile cache size for performance (keep more tiles in memory for returning)
+pub const TILE_CACHE_SIZE: usize = 500;
+
+/// Distance threshold for unloading tiles from memory
+pub const TILE_UNLOAD_DISTANCE: u32 = 8;
+
 /// Cache directory name for map tiles
 pub const TILE_CACHE_DIR: &str = "cache/tiles";
 
-/// Extra buffer radius for tile generation (ensures tiles exist beyond visible area)
-pub const TILE_GENERATION_BUFFER: u32 = 2;
-
-/// Fog of War visibility pattern - diamond pattern with two visibility zones
-pub const FOG_OF_WAR_DIAMOND_PATTERN: bool = true;
-
-/// Legacy constant - replaced by FOG_OF_WAR_DIAMOND_PATTERN
-pub const FOG_OF_WAR_PLUS_PATTERN: bool = true;
-
-/// Maximum tiles visible at once in plus pattern (player + 4 adjacent)
-pub const MAX_VISIBLE_TILES_PLUS_PATTERN: usize = 5;
-
 // =============================================================================
-// FOG OF WAR DIAMOND PATTERN CONSTANTS
+// VISIBILITY CALCULATIONS
 // =============================================================================
-
-/// Radius for fully visible tiles (no fog) - plus pattern around player
-pub const FULLY_VISIBLE_RADIUS: u32 = 1;
-
-/// Radius for fogged tiles (visible but with fog overlay) - diamond pattern
-pub const FOGGED_VISIBLE_RADIUS: u32 = 3;
 
 /// Maximum tiles in fully visible zone (player + 4 adjacent)
 pub const MAX_FULLY_VISIBLE_TILES: usize = 5;
@@ -145,12 +137,6 @@ pub const MAX_FOGGED_VISIBLE_TILES: usize = 20;
 
 /// Total maximum visible tiles (fully visible + fogged)
 pub const MAX_TOTAL_VISIBLE_TILES: usize = MAX_FULLY_VISIBLE_TILES + MAX_FOGGED_VISIBLE_TILES;
-
-/// Tile cache size for performance (keep more tiles in memory for returning)
-pub const TILE_CACHE_SIZE: usize = 500;
-
-/// Distance threshold for unloading tiles from memory
-pub const TILE_UNLOAD_DISTANCE: u32 = 8;
 
 // =============================================================================
 // RESOURCE CONSTANTS
@@ -180,9 +166,15 @@ pub const SLOW_REGEN_RATE: u32 = 1;
 pub const MODERATE_REGEN_RATE: u32 = 3;
 pub const FAST_REGEN_RATE: u32 = 5;
 
+/// Resource gathering time in seconds
+pub const RESOURCE_GATHERING_TIME: u32 = 10;
+
 // =============================================================================
 // EVENT SYSTEM CONSTANTS
 // =============================================================================
+
+/// Event check interval in seconds
+pub const EVENT_CHECK_INTERVAL: u32 = 30;
 
 /// Probability ranges for different event types
 pub const EVENT_PROBABILITY_RESOURCE: f32 = 0.25;
@@ -222,6 +214,25 @@ pub const CRITICAL_HIT_THRESHOLD: u8 = 18;
 /// Critical hit damage multiplier
 pub const CRITICAL_HIT_MULTIPLIER: f32 = 2.0;
 
+/// Collision detection radius for interactions (in world units)
+pub const COLLISION_RADIUS: f32 = 32.0;
+
+// =============================================================================
+// LEGACY BEVY SYSTEM CONSTANTS (FOR COMPATIBILITY)
+// =============================================================================
+
+/// Player sprite size (width, height) for Bevy systems
+pub const PLAYER_SIZE: (f32, f32) = (32.0, 32.0);
+
+/// Enemy sprite size (width, height) for Bevy systems
+pub const ENEMY_SIZE: (f32, f32) = (32.0, 32.0);
+
+/// Default enemy speed for legacy systems
+pub const DEFAULT_ENEMY_SPEED: f32 = 150.0;
+
+/// Points awarded per enemy destroyed
+pub const POINTS_PER_ENEMY: u32 = 10;
+
 // =============================================================================
 // BASE BUILDING CONSTANTS
 // =============================================================================
@@ -251,6 +262,9 @@ pub const GAME_TIME_ACCELERATION: f32 = 1.0;
 /// Maximum game session time (in minutes)
 pub const MAX_SESSION_TIME: u32 = 480; // 8 hours
 
+/// Enemy spawn interval in seconds
+pub const ENEMY_SPAWN_INTERVAL: f32 = 2.0;
+
 // =============================================================================
 // DIFFICULTY SCALING CONSTANTS
 // =============================================================================
@@ -268,31 +282,6 @@ pub const MAX_DIFFICULTY: f32 = 5.0;
 pub const LOW_DANGER_THRESHOLD: u8 = 3;
 pub const MEDIUM_DANGER_THRESHOLD: u8 = 6;
 pub const HIGH_DANGER_THRESHOLD: u8 = 8;
-
-// =============================================================================
-// LEGACY CONSTANTS (FOR BACKWARD COMPATIBILITY)
-// =============================================================================
-
-/// Collision detection radius for interactions
-pub const COLLISION_RADIUS: f32 = 32.0;
-
-/// Default player movement speed (legacy)
-pub const DEFAULT_PLAYER_SPEED: f32 = 200.0;
-
-/// Enemy spawn interval in seconds (legacy)
-pub const ENEMY_SPAWN_INTERVAL: f32 = 2.0;
-
-/// Default enemy speed (legacy)
-pub const DEFAULT_ENEMY_SPEED: f32 = 150.0;
-
-/// Player sprite size (width, height) (legacy)
-pub const PLAYER_SIZE: (f32, f32) = (32.0, 32.0);
-
-/// Enemy sprite size (width, height) (legacy)
-pub const ENEMY_SIZE: (f32, f32) = (32.0, 32.0);
-
-/// Points awarded per enemy destroyed (legacy)
-pub const POINTS_PER_ENEMY: u32 = 10;
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -402,7 +391,28 @@ mod tests {
         assert!(MAX_PLAYER_LEVEL > 1);
         assert!(BASE_EXPERIENCE_REQUIREMENT > 0);
         assert!(EXPERIENCE_MULTIPLIER > 1.0);
-        assert!(MAX_MOVEMENT_POINTS >= DEFAULT_MOVEMENT_POINTS);
         assert!(BASE_EVENT_CHANCE >= 0.0 && BASE_EVENT_CHANCE <= 1.0);
+
+        // Visibility constants
+        assert!(FOGGED_VISIBLE_RADIUS > FULLY_VISIBLE_RADIUS);
+        assert!(TILE_GENERATION_BUFFER > 0);
+
+        // Movement constants
+        assert!(MAX_MOVEMENT_POINTS >= BASE_MOVEMENT_POINTS as u32);
+        assert!(BASE_MOVEMENT_COST > 0);
+
+        // Resource constants
+        assert!(MAX_RESOURCE_AMOUNT > 0);
+        assert!(BASE_STORAGE_CAPACITY > 0);
+    }
+
+    #[test]
+    fn test_fog_of_war_calculations() {
+        // Test that visibility calculations make sense
+        assert_eq!(
+            MAX_TOTAL_VISIBLE_TILES,
+            MAX_FULLY_VISIBLE_TILES + MAX_FOGGED_VISIBLE_TILES
+        );
+        assert!(MAX_FOGGED_VISIBLE_TILES > MAX_FULLY_VISIBLE_TILES);
     }
 }

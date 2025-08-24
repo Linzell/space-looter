@@ -165,7 +165,7 @@ impl FromWorld for TerrainMaterials {
                 base_color: Color::srgba(0.2, 0.2, 0.3, 0.7), // Semi-transparent dark blue
                 alpha_mode: AlphaMode::Blend,
                 metallic: 0.0,
-                perceptual_roughness: 0.9,
+                perceptual_roughness: 1.0,
                 ..default()
             }),
         }
@@ -523,11 +523,12 @@ fn update_3d_map_system(
 
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(2.0, 0.2, 2.0))),
-            MeshMaterial3d(match (tile.is_explored, visibility_level) {
-                (true, VisibilityLevel::FullyVisible) => {
-                    get_terrain_material(&terrain_materials, tile.terrain_type)
-                }
-                _ => terrain_materials.fog_overlay.clone(),
+            MeshMaterial3d(if tile.is_explored {
+                // Show terrain for all explored tiles (no fog on explored areas)
+                get_terrain_material(&terrain_materials, tile.terrain_type)
+            } else {
+                // Show fog for unexplored tiles
+                terrain_materials.fog_overlay.clone()
             }),
             Transform::from_translation(Vec3::new(world_pos.x, height_offset, world_pos.z)),
             TerrainTile {
@@ -677,11 +678,12 @@ fn render_initial_map_around_player(
             let is_explored = tile.is_explored;
             let visibility_level =
                 visibility_service.get_tile_visibility(player_position, tile_coord);
-            let material = match (is_explored, visibility_level) {
-                (true, VisibilityLevel::FullyVisible) => {
-                    get_terrain_material(terrain_materials, tile.terrain_type)
-                }
-                _ => terrain_materials.fog_overlay.clone(),
+            let material = if is_explored {
+                // Show terrain for all explored tiles (no fog on explored areas)
+                get_terrain_material(&terrain_materials, tile.terrain_type)
+            } else {
+                // Show fog for unexplored tiles
+                terrain_materials.fog_overlay.clone()
             };
 
             commands.spawn((
@@ -743,11 +745,12 @@ fn render_new_tiles_around_player(
             let is_explored = tile.is_explored;
             let visibility_level =
                 visibility_service.get_tile_visibility(player_position, tile_coord);
-            let material = match (is_explored, visibility_level) {
-                (true, VisibilityLevel::FullyVisible) => {
-                    get_terrain_material(terrain_materials, tile.terrain_type)
-                }
-                _ => terrain_materials.fog_overlay.clone(),
+            let material = if is_explored {
+                // Show terrain for all explored tiles (no fog on explored areas)
+                get_terrain_material(&terrain_materials, tile.terrain_type)
+            } else {
+                // Show fog for unexplored tiles
+                terrain_materials.fog_overlay.clone()
             };
 
             commands.spawn((

@@ -104,7 +104,7 @@ impl Map {
 
         // Calculate visible tiles around player
         let visible_coords: std::collections::HashSet<TileCoordinate> = position
-            .positions_within_distance(constants::VISIBLE_TILE_RADIUS)
+            .positions_within_distance(constants::FULLY_VISIBLE_RADIUS)
             .into_iter()
             .chain(
                 self.player_history

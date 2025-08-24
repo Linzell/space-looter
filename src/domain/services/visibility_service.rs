@@ -40,8 +40,8 @@ impl VisibilityService {
         let tile_pos = Position3D::from(tile_coord);
 
         if FOG_OF_WAR_DIAMOND_PATTERN {
-            // Check if fully visible (plus pattern)
-            if self.is_in_plus_pattern(player_pos, tile_pos) {
+            // Check if fully visible (diamond pattern)
+            if self.is_in_diamond_pattern_fully_visible(player_pos, tile_pos) {
                 return VisibilityLevel::FullyVisible;
             }
 
@@ -74,34 +74,24 @@ impl VisibilityService {
 
     /// Get all fully visible tile coordinates (no fog)
     pub fn get_fully_visible_coordinates(&self, player_pos: Position3D) -> Vec<TileCoordinate> {
-        vec![
-            // Player tile
-            TileCoordinate::from(player_pos),
-            // North
-            TileCoordinate::from(Position3D::new(
-                player_pos.x,
-                player_pos.y + 1,
-                player_pos.z,
-            )),
-            // South
-            TileCoordinate::from(Position3D::new(
-                player_pos.x,
-                player_pos.y - 1,
-                player_pos.z,
-            )),
-            // East
-            TileCoordinate::from(Position3D::new(
-                player_pos.x + 1,
-                player_pos.y,
-                player_pos.z,
-            )),
-            // West
-            TileCoordinate::from(Position3D::new(
-                player_pos.x - 1,
-                player_pos.y,
-                player_pos.z,
-            )),
-        ]
+        let mut visible_coords = Vec::new();
+        let radius = FULLY_VISIBLE_RADIUS as i32;
+
+        // Generate diamond pattern within radius using Manhattan distance
+        for dx in -radius..=radius {
+            for dy in -radius..=radius {
+                let manhattan_distance = dx.abs() + dy.abs();
+                if manhattan_distance <= radius {
+                    visible_coords.push(TileCoordinate::from(Position3D::new(
+                        player_pos.x + dx,
+                        player_pos.y + dy,
+                        player_pos.z,
+                    )));
+                }
+            }
+        }
+
+        visible_coords
     }
 
     /// Get all fogged visible tile coordinates (shown with fog overlay)
@@ -117,7 +107,7 @@ impl VisibilityService {
 
                 // Include if in diamond pattern but not in plus pattern
                 if self.is_in_diamond_pattern(player_pos, tile_pos)
-                    && !self.is_in_plus_pattern(player_pos, tile_pos)
+                    && !self.is_in_diamond_pattern_fully_visible(player_pos, tile_pos)
                 {
                     fogged_tiles.push(tile_coord);
                 }
@@ -134,14 +124,19 @@ impl VisibilityService {
         all_tiles
     }
 
-    /// Check if a tile position is in the plus pattern around player (fully visible)
-    fn is_in_plus_pattern(&self, player_pos: Position3D, tile_pos: Position3D) -> bool {
+    /// Check if a tile position is in the diamond pattern around player (fully visible)
+    fn is_in_diamond_pattern_fully_visible(
+        &self,
+        player_pos: Position3D,
+        tile_pos: Position3D,
+    ) -> bool {
         let dx = (player_pos.x - tile_pos.x).abs();
         let dy = (player_pos.y - tile_pos.y).abs();
         let dz = (player_pos.z - tile_pos.z).abs();
 
-        // Same Z level and either same position or adjacent in cardinal directions only
-        dz == 0 && ((dx == 0 && dy <= 1) || (dy == 0 && dx <= 1))
+        // Same Z level and within fully visible radius using Manhattan distance (diamond pattern)
+        let radius = FULLY_VISIBLE_RADIUS as i32;
+        dz == 0 && (dx + dy) <= radius
     }
 
     /// Check if a tile position is in the diamond pattern around player (fogged visible)
