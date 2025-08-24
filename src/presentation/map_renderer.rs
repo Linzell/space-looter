@@ -9,6 +9,7 @@ use crate::domain::value_objects::terrain::TerrainType;
 use crate::domain::value_objects::TileCoordinate;
 use crate::infrastructure::bevy::resources::{MapResource, PlayerResource};
 use crate::presentation::audio_integration::TerrainChangeEvent;
+use crate::presentation::movement::{CameraFollowsMovement, SmoothMovement, SmoothMovementPlugin};
 use bevy::prelude::*;
 
 /// Plugin for 3D isometric map rendering functionality
@@ -16,27 +17,28 @@ pub struct MapRendererPlugin;
 
 impl Plugin for MapRendererPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Startup,
-            (setup_3d_camera_system, setup_terrain_materials_system),
-        )
-        .add_systems(
-            Update,
-            (
-                setup_camera_following_system,
-                mark_tiles_explored_system,
-                update_3d_map_system,
-                update_player_position_system,
-                render_on_map_generation_system,
-                force_initial_render_system,
-                initial_map_render_system,
-                detect_player_terrain_changes,
+        app.add_plugins(SmoothMovementPlugin)
+            .add_systems(
+                Startup,
+                (setup_3d_camera_system, setup_terrain_materials_system),
             )
-                .chain()
-                .after(crate::rpg_exploration_system),
-        )
-        .init_resource::<TerrainMaterials>()
-        .init_resource::<RenderState>();
+            .add_systems(
+                Update,
+                (
+                    setup_camera_following_system,
+                    mark_tiles_explored_system,
+                    update_3d_map_system,
+                    update_player_position_system,
+                    render_on_map_generation_system,
+                    force_initial_render_system,
+                    initial_map_render_system,
+                    detect_player_terrain_changes,
+                )
+                    .chain()
+                    .after(crate::rpg_exploration_system),
+            )
+            .init_resource::<TerrainMaterials>()
+            .init_resource::<RenderState>();
     }
 }
 
@@ -249,32 +251,32 @@ fn setup_3d_camera_system(mut commands: Commands) {
 
 /// System to setup and maintain camera following - runs continuously to handle player respawn
 fn setup_camera_following_system(
+    mut commands: Commands,
     mut camera_query: Query<
         (&mut Transform, Entity),
         (With<IsometricCamera>, Without<PlayerMarker>),
     >,
-    player_query: Query<(Entity, &Transform), (With<PlayerMarker>, Without<IsometricCamera>)>,
+    player_query: Query<(Entity, &SmoothMovement), With<PlayerMarker>>,
 ) {
-    // Always try to find the current player and update camera
-    if let Ok((player_entity, player_transform)) = player_query.single() {
-        for (mut camera_transform, _camera_entity) in camera_query.iter_mut() {
-            // Log camera following (only once by checking if we need to update position significantly)
-            let current_pos = camera_transform.translation;
-            let player_pos = player_transform.translation;
+    // Always try to find the current player and setup camera following
+    if let Ok((player_entity, smooth_movement)) = player_query.single() {
+        for (mut camera_transform, camera_entity) in camera_query.iter_mut() {
+            // Check if camera already has CameraFollowsMovement component
+            commands
+                .entity(camera_entity)
+                .insert(CameraFollowsMovement {
+                    target_entity: Some(player_entity),
+                    offset: Vec3::new(10.0, 15.0, 10.0),
+                    follow_speed: 2.0,
+                });
 
-            // Position camera at isometric angle relative to player for proper centering
+            // Set initial camera position
+            let player_pos = smooth_movement.current_position;
             let camera_offset = Vec3::new(10.0, 15.0, 10.0);
             let target_camera_pos = player_pos + camera_offset;
 
-            // Smooth camera movement with lower lerp factor to reduce trembling
-            let distance = (target_camera_pos - current_pos).length();
-
-            // Only update if distance is significant to prevent micro-movements
-            if distance > 0.1 {
-                camera_transform.translation = current_pos.lerp(target_camera_pos, 0.02);
-                // Always look at the player to keep them centered
-                camera_transform.look_at(player_pos, Vec3::Y);
-            }
+            camera_transform.translation = target_camera_pos;
+            camera_transform.look_at(player_pos, Vec3::Y);
         }
     }
 }
@@ -579,38 +581,44 @@ fn update_player_position_system(
     mut meshes: ResMut<Assets<Mesh>>,
     terrain_materials: Res<TerrainMaterials>,
     player_resource: Res<PlayerResource>,
-    mut player_query: Query<&mut Transform, With<PlayerMarker>>,
+    player_query: Query<(Entity, &SmoothMovement), With<PlayerMarker>>,
     existing_player: Query<Entity, With<PlayerMarker>>,
 ) {
     if !player_resource.has_player() {
         return;
     }
 
-    let player_position = player_resource.player_position().unwrap_or_default();
-    let world_pos = tile_to_world_position(player_position.x, player_position.y, player_position.z);
-    let final_position = Vec3::new(world_pos.x, 1.0, world_pos.z); // Player above terrain
+    // Only create player entity if it doesn't exist
+    // NEVER update position - smooth movement system handles all position updates
+    if player_query.is_empty() {
+        let player_position = player_resource.player_position().unwrap_or_default();
+        let position_3d = crate::domain::value_objects::position::Position3D::new(
+            player_position.x,
+            player_position.y,
+            player_position.z,
+        );
 
-    // Update existing player or create new one
-    if let Ok(mut transform) = player_query.single_mut() {
-        // Immediate position update for tile synchronization
-        transform.translation = final_position;
-    } else {
         // Create player if doesn't exist
         for entity in existing_player.iter() {
             commands.entity(entity).despawn();
         }
 
-        // Create player as a cylinder/capsule
+        // Create player as a cylinder/capsule with smooth movement
         let player_mesh = meshes.add(Mesh::from(Cylinder::new(0.3, 1.5)));
+        let smooth_movement = SmoothMovement::new(position_3d);
+        let world_pos = crate::presentation::movement::tile_to_world_position(position_3d);
+        let final_position = Vec3::new(world_pos.x, 1.0, world_pos.z); // Player above terrain
 
         commands.spawn((
             Mesh3d(player_mesh),
             MeshMaterial3d(terrain_materials.player.clone()),
             Transform::from_translation(final_position),
+            smooth_movement,
             PlayerMarker,
             Name::new("Player"),
         ));
     }
+    // If player already exists, do NOTHING - smooth movement system controls position
 }
 
 /// Render initial map around player

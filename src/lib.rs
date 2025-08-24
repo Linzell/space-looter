@@ -364,8 +364,15 @@ pub fn rpg_exploration_system(
     mut game_stats: ResMut<infrastructure::bevy::resources::GameStatsResource>,
     tile_movement_service: Res<domain::services::TileMovementService>,
     resting_service: Res<domain::services::RestingService>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut movement_events: EventReader<crate::presentation::movement::ExecuteRpgMovement>,
+    mut movement_completed_events: EventReader<crate::presentation::movement::MovementCompleted>,
     mut pending_movement: Local<Option<domain::Position3D>>,
+    mut pending_rpg_results: Local<
+        Vec<(
+            domain::Position3D,
+            domain::services::tile_movement::MovementResult,
+        )>,
+    >,
     mut rest_timer: Local<Option<Timer>>,
     time: Res<Time>,
     mut game_log: ResMut<GameLogService>,
@@ -408,28 +415,46 @@ pub fn rpg_exploration_system(
             target_position
         );
     } else {
-        // Handle new movement input
+        // Movement input is now handled by the smooth movement system
+        // This system only processes movement commands from the smooth movement system
+    }
 
-        if keyboard_input.just_pressed(KeyCode::ArrowUp)
-            || keyboard_input.just_pressed(KeyCode::KeyW)
+    // Process movement commands from smooth movement system
+    for movement_event in movement_events.read() {
+        info!(
+            "🎮 RPG System: Received movement event to {:?}",
+            movement_event.target_position
+        );
+        target_position = movement_event.target_position;
+        movement_attempted = true;
+    }
+
+    // Process completed movements from smooth movement system
+    for completion_event in movement_completed_events.read() {
+        // Find and apply the corresponding RPG movement result
+        if let Some(index) = pending_rpg_results
+            .iter()
+            .position(|(pos, _)| *pos == completion_event.final_position)
         {
-            target_position.y -= 1; // Fixed: up key now moves up on screen (towards camera)
-            movement_attempted = true;
-        } else if keyboard_input.just_pressed(KeyCode::ArrowDown)
-            || keyboard_input.just_pressed(KeyCode::KeyS)
-        {
-            target_position.y += 1; // Fixed: down key now moves down on screen (away from camera)
-            movement_attempted = true;
-        } else if keyboard_input.just_pressed(KeyCode::ArrowLeft)
-            || keyboard_input.just_pressed(KeyCode::KeyA)
-        {
-            target_position.x -= 1;
-            movement_attempted = true;
-        } else if keyboard_input.just_pressed(KeyCode::ArrowRight)
-            || keyboard_input.just_pressed(KeyCode::KeyD)
-        {
-            target_position.x += 1;
-            movement_attempted = true;
+            let (final_pos, movement_result) = pending_rpg_results.remove(index);
+
+            info!(
+                "🎮 RPG System: Applying delayed movement result to {:?}",
+                final_pos
+            );
+
+            // Now actually update the player position
+            if let Err(e) = player_resource.move_player(final_pos, 1) {
+                warn!("Failed to update player position after animation: {:?}", e);
+            } else {
+                // Apply the movement result effects
+                apply_movement_result(
+                    &movement_result,
+                    &mut player_resource,
+                    &mut game_stats,
+                    &mut game_log,
+                );
+            }
         }
     }
 
@@ -441,7 +466,7 @@ pub fn rpg_exploration_system(
             // Get or generate map around player position
             let map = map_resource.get_or_create_map_mut(current_position);
 
-            // Attempt tile movement with dice roll
+            // Attempt tile movement with dice roll - but DON'T update player position yet
             match tile_movement_service.attempt_movement(
                 &player,
                 target_position,
@@ -456,75 +481,18 @@ pub fn rpg_exploration_system(
                         movement_result.dice_result.outcome_category()
                     );
 
-                    // Execute the movement
                     info!("🚀 Attempting to move player to: {:?}", target_position);
                     let current_pos_before = player_resource.player_position();
                     info!("📍 Player position before move: {:?}", current_pos_before);
 
-                    if let Ok(()) =
-                        player_resource.move_player(target_position, movement_result.movement_cost)
-                    {
-                        let current_pos_after = player_resource.player_position();
-                        info!("📍 Player position after move: {:?}", current_pos_after);
+                    // Store the movement result to be applied when animation completes
+                    info!("🎮 RPG System: Storing movement result for delayed execution");
+                    pending_rpg_results.push((target_position, movement_result));
 
-                        game_stats.record_tile_explored();
-                        info!("✅ Player moved to position: {:?}", target_position);
+                    // Don't update player position immediately - wait for animation to complete
+                    info!("✅ Movement validation passed, waiting for animation to complete");
 
-                        // Play successful movement sound
-                        if let Some(audio_assets) = &audio_assets {
-                            if let Some(step_handle) = &audio_assets.movement_step {
-                                commands.spawn(AudioPlayer::new(step_handle.clone()));
-                            }
-                        }
-
-                        // Handle triggered event
-                        if let Some(event) = movement_result.triggered_event {
-                            info!(
-                                "🎭 Event Triggered: {} - {}",
-                                event.title(),
-                                event.description()
-                            );
-                            game_log.log_message(
-                                format!(
-                                    "Event Triggered: {} - {}",
-                                    event.title(),
-                                    event.description()
-                                ),
-                                GameLogType::Event,
-                            );
-
-                            // Process event outcomes based on type and dice result
-                            process_movement_event(
-                                &event,
-                                &movement_result.dice_result,
-                                &mut player_resource,
-                                &mut game_stats,
-                                &mut game_log,
-                                &mut commands,
-                                audio_assets.as_ref(),
-                            );
-
-                            // Log event description
-                            info!("📖 {}", event.description());
-                            game_log.log_message(
-                                event.description().to_string(),
-                                GameLogType::Narrative,
-                            );
-                        } else {
-                            info!("🚶 Safe movement - no events triggered");
-
-                            // Give small movement point recovery even for safe movement
-                            // to prevent players from getting completely stuck
-                            if let Some(player) = player_resource.get_player_mut() {
-                                player.add_movement_points(2);
-                                info!("🏃 Safe exploration grants 2 movement points");
-                                game_log.log_message(
-                                    "Safe exploration grants 2 movement points".to_string(),
-                                    GameLogType::Resources,
-                                );
-                            }
-                        }
-                    }
+                    // All movement result processing is now delayed until animation completes
                 }
                 Err(e) => {
                     warn!("❌ Movement failed: {}", e);
@@ -1284,6 +1252,59 @@ pub fn stop_music() {
     if let Ok(mut state) = MUSIC_CONTROL_STATE.lock() {
         state.should_stop = true;
         state.should_play = false;
+    }
+}
+
+/// Apply movement result effects after animation completes
+fn apply_movement_result(
+    movement_result: &domain::services::tile_movement::MovementResult,
+    player_resource: &mut ResMut<infrastructure::bevy::resources::PlayerResource>,
+    game_stats: &mut ResMut<infrastructure::bevy::resources::GameStatsResource>,
+    game_log: &mut ResMut<GameLogService>,
+) {
+    // Update game statistics
+    game_stats.record_tile_explored();
+
+    // Handle movement result based on what happened
+    if let Some(event) = &movement_result.triggered_event {
+        info!(
+            "🎭 Event Triggered: {} - {}",
+            event.title(),
+            event.description()
+        );
+
+        game_log.log_message(
+            format!(
+                "Event Triggered: {} - {}",
+                event.title(),
+                event.description()
+            ),
+            GameLogType::Event,
+        );
+
+        // Add resources from event
+        if let Some(mut player) = player_resource.get_player_mut() {
+            // Add movement points from successful exploration
+            player.add_movement_points(2);
+        }
+
+        info!("🏃 Gained 2 movement points from successful exploration!");
+
+        // Log event description
+        info!("📖 {}", event.description());
+        game_log.log_message(event.description().to_string(), GameLogType::Narrative);
+    } else {
+        info!("🚶 Safe movement - no events triggered");
+
+        // Give small movement point recovery even for safe movement
+        if let Some(player) = player_resource.get_player_mut() {
+            player.add_movement_points(2);
+            info!("🏃 Safe exploration grants 2 movement points");
+            game_log.log_message(
+                "Safe exploration grants 2 movement points".to_string(),
+                GameLogType::Resources,
+            );
+        }
     }
 }
 

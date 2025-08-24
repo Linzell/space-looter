@@ -24,6 +24,7 @@ pub mod game_ui;
 pub mod input;
 pub mod log_interceptor;
 pub mod map_renderer;
+pub mod movement;
 pub mod rendering;
 
 // Re-export common presentation types
